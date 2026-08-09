@@ -31,7 +31,7 @@ async function initSimulation() {
     });
 
     // 5. Load and compile the WGSL Shader Code
-    const shaderSource = await fetch(new URL("app.wgsl", import.meta.url)).then((res) => {
+    const shaderSource = await fetch(new URL("app.wgsl", import.meta.url), { cache: "reload" }).then((res) => {
         if (!res.ok) {
             throw new Error("Failed to load app.wgsl");
         }

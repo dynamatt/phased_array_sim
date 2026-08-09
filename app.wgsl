@@ -32,10 +32,17 @@ fn fragment_main(@builtin(position) fragCoord: vec4f) -> @location(0) vec4f {
     );
 
     var total_amplitude: f32 = 0.0;
+    var antenna_overlay: f32 = 0.0;
 
     // Calculate wave contribution from each antenna element
     for (var i = 0; i < 4; i++) {
         let dist = distance(uv, antennas[i]);
+        
+        // Mark antenna positions with a large red dot overlay
+        let dot_radius = 0.02;
+        if (dist < dot_radius) {
+            antenna_overlay = 1.0;
+        }
         
         // Progressively shift the phase for each antenna to "steer" the beam
         let element_phase = f32(i) * uniforms.phase_step;
@@ -48,6 +55,10 @@ fn fragment_main(@builtin(position) fragCoord: vec4f) -> @location(0) vec4f {
     // Normalize amplitude for color display (-4.0 to +4.0 mapped to 0.0 to 1.0)
     let intensity = (total_amplitude / 4.0) * 0.5 + 0.5;
 
-    // Output color: Bright cyan/blue for wave peaks, black for destructive interference
+    // Antenna markers are bright red and sit on top of the wave field
+    if (antenna_overlay > 0.5) {
+        return vec4f(1.0, 0.0, 0.0, 1.0);
+    }
+
     return vec4f(intensity * 0.2, intensity * 0.8, intensity, 1.0);
 }
