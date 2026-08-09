@@ -6,11 +6,20 @@
     <style>
         body { margin: 0; background: #111; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
         canvas { border: 1px solid #444; max-width: 90vw; max-height: 80vh; }
+        #controls { display: grid; gap: 0.5rem; width: min(800px, 90vw); margin-top: 1rem; }
+        #controls label { display: flex; justify-content: space-between; font-size: 0.95rem; }
+        #controls input[type=range] { width: 100%; }
     </style>
 </head>
 <body>
     <h1>Phased Array Wave Simulation</h1>
     <canvas id="gpuCanvas" width="800" height="800"></canvas>
+    <div id="controls">
+        <label for="freqSlider">Frequency: <span id="freqValue">40</span> Hz</label>
+        <input id="freqSlider" type="range" min="1" max="100" step="1" value="40">
+        <label for="phaseSlider">Phase step: <span id="phaseValue">0</span>°</label>
+        <input id="phaseSlider" type="range" min="-180" max="180" step="1" value="0">
+    </div>
     <p>Simulating 4 antenna elements calculating wave interference in real-time.</p>
     <script type="module" src="app.js"></script>
 </body>

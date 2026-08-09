@@ -51,12 +51,26 @@ async function initSimulation() {
         entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
     });
 
+    const freqSlider = document.getElementById("freqSlider");
+    const phaseSlider = document.getElementById("phaseSlider");
+    const freqValue = document.getElementById("freqValue");
+    const phaseValue = document.getElementById("phaseValue");
+
+    const updateLabels = () => {
+        freqValue.textContent = freqSlider.value;
+        phaseValue.textContent = phaseSlider.value;
+    };
+    updateLabels();
+    freqSlider.addEventListener("input", updateLabels);
+    phaseSlider.addEventListener("input", updateLabels);
+
     // 7. The Animation Render Loop
     let startTime = Date.now();
     function frame() {
         const currentTime = (Date.now() - startTime) / 1000.0; // Time in seconds
-        const frequency = 40.0; 
-        const phaseStep = Math.sin(currentTime) * 2.0; // Dynamic phase shifting to sway the beam left/right
+        const frequency = parseFloat(freqSlider.value);
+        const phaseDegrees = parseFloat(phaseSlider.value);
+        const phaseStep = phaseDegrees * (Math.PI / 180.0);
 
         // Pack values into a float array to send to GPU
         const uniformData = new Float32Array([currentTime, frequency, phaseStep, 0]);
