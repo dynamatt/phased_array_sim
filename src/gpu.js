@@ -4,7 +4,7 @@
  * queries the DOM.
  */
 
-import { layoutElements } from "./geometry.js";
+import { layoutArray, elementSpacingForArray } from "./geometry.js";
 import { wrapPhase, TWO_PI, steeringPhaseStep } from "./units.js";
 import { DISPLAY_MODES } from "./state.js";
 
@@ -93,9 +93,10 @@ function applyCanvasSize(canvas, gpu, renderScale) {
 
 /** Writes packed element data (position/phase/weight) into `target`; returns the element count written. */
 function packElements(target, snapshot) {
-    const positions = layoutElements(snapshot.array.shape, { spacingLambda: snapshot.array.spacingLambda }, snapshot.array.elementCount);
+    const positions = layoutArray(snapshot.array);
     const n = Math.min(positions.length, MAX_ELEMENTS);
-    const phaseStepRad = steeringPhaseStep(snapshot.array.spacingLambda, snapshot.excitation.steerAngleDeg);
+    const spacingLambda = elementSpacingForArray(snapshot.array);
+    const phaseStepRad = steeringPhaseStep(spacingLambda, snapshot.excitation.steerAngleDeg);
     for (let i = 0; i < n; i++) {
         const phaseRad = wrapPhase(i * phaseStepRad);
         target[i * 4 + 0] = positions[i].x;

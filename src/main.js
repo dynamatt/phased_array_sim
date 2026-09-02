@@ -1,7 +1,7 @@
 import { createStateStore, DEFAULT_VIEW } from "./state.js";
 import { startRenderer } from "./gpu.js";
 import { screenToWorld, computeFitView } from "./units.js";
-import { layoutElements } from "./geometry.js";
+import { layoutArray } from "./geometry.js";
 import { createPanel } from "./ui/panel.js";
 
 const store = createStateStore();
@@ -20,7 +20,7 @@ function clamp(value, min, max) {
 function fitViewToArray() {
     const canvas = $("gpuCanvas");
     const state = store.get();
-    const positions = layoutElements(state.array.shape, { spacingLambda: state.array.spacingLambda }, state.array.elementCount);
+    const positions = layoutArray(state.array);
     const fit = computeFitView(positions, canvas.width, canvas.height);
     if (!fit) return;
     store.update("view.centerX", fit.centerX);

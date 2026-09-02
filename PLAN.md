@@ -227,3 +227,9 @@ Not in scope now; listed so the architecture doesn't foreclose them.
   solver (FDTD), and would break the closed-form per-pixel evaluation.
 - Element failure simulation (kill random elements, watch sidelobes rise).
 - Time-domain pulse excitation rather than continuous wave.
+- Amplitude taper / apodisation windows (uniform / Hamming / Blackman /
+  Taylor) — Q3.4, deferred out of Phase 3. The storage buffer already
+  reserves a per-element weight (`w`, currently always 1.0) for this, so
+  it's cheap to add later: compute per-element weights from the window
+  function in `geometry.js` or a new pure module, write them into the `w`
+  slot `gpu.js` already packs. Good demo of the sidelobe/beamwidth trade-off.

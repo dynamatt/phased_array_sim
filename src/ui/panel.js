@@ -8,6 +8,7 @@
 
 import { MEDIA } from "../state.js";
 import { wavelengthMeters, steeringPhaseStep } from "../units.js";
+import { elementSpacingForArray, parabolaFocalLength } from "../geometry.js";
 import {
     createSlider,
     createKnob,
@@ -62,6 +63,16 @@ export function createPanel(store, { onFitArray }) {
     root.append(header, body);
 
     // ---- Array ----
+    const shape = createSegmented({
+        label: "Shape",
+        options: [
+            { value: "line", label: "Line" },
+            { value: "parabola", label: "Parabola" },
+            { value: "arc", label: "Arc" },
+        ],
+        value: store.get().array.shape,
+        onChange: (v) => store.update("array.shape", v),
+    });
     const elementCount = createSlider({
         label: "Element count",
         min: 1,
@@ -70,6 +81,10 @@ export function createPanel(store, { onFitArray }) {
         value: store.get().array.elementCount,
         onChange: (v) => store.update("array.elementCount", Math.round(v)),
     });
+    // Arc-length spacing between adjacent elements; the primary control for
+    // "line" and "parabola" (their aperture is derived, per PLAN.md Q3.2).
+    // "arc" derives its spacing from radius + sweep instead, so this control
+    // hides for it (see updateShapeVisibility()).
     const spacing = createSlider({
         label: "Spacing",
         min: 0.1,
@@ -79,7 +94,53 @@ export function createPanel(store, { onFitArray }) {
         format: (v) => `${v.toFixed(2)} λ`,
         onChange: (v) => store.update("array.spacingLambda", v),
     });
-    const arraySection = createSection("Array", [elementCount, spacing]);
+    const curvature = createSlider({
+        label: "Curvature a",
+        min: 0.01,
+        max: 0.3,
+        step: 0.005,
+        value: store.get().array.curvatureA,
+        format: (v) => `${v.toFixed(3)} 1/λ`,
+        onChange: (v) => store.update("array.curvatureA", v),
+    });
+    const focalLengthReadout = createReadout("Focal length");
+    const radius = createSlider({
+        label: "Radius",
+        min: 1,
+        max: 50,
+        step: 0.5,
+        value: store.get().array.radiusLambda,
+        format: (v) => `${v.toFixed(1)} λ`,
+        onChange: (v) => store.update("array.radiusLambda", v),
+    });
+    const sweep = createSlider({
+        label: "Sweep angle",
+        min: 5,
+        max: 360,
+        step: 5,
+        value: store.get().array.sweepDeg,
+        format: (v) => `${v.toFixed(0)}°`,
+        onChange: (v) => store.update("array.sweepDeg", v),
+    });
+
+    function updateShapeVisibility(currentShape) {
+        spacing.element.hidden = currentShape === "arc";
+        curvature.element.hidden = currentShape !== "parabola";
+        focalLengthReadout.element.hidden = currentShape !== "parabola";
+        radius.element.hidden = currentShape !== "arc";
+        sweep.element.hidden = currentShape !== "arc";
+    }
+    updateShapeVisibility(store.get().array.shape);
+
+    const arraySection = createSection("Array", [
+        shape,
+        elementCount,
+        spacing,
+        curvature,
+        focalLengthReadout,
+        radius,
+        sweep,
+    ]);
 
     // ---- Excitation ----
     const steerAngle = createKnob({
@@ -172,18 +233,22 @@ export function createPanel(store, { onFitArray }) {
 
     function updateDerived() {
         const state = store.get();
+        updateShapeVisibility(state.array.shape);
+
         const speedMps = MEDIA[state.excitation.medium];
         const wavelength = wavelengthMeters(speedMps, state.excitation.frequencyHz);
-        const spacingMeters = state.array.spacingLambda * wavelength;
-        const phaseStepDeg = (steeringPhaseStep(state.array.spacingLambda, state.excitation.steerAngleDeg) * 180) / Math.PI;
+        const spacingLambda = elementSpacingForArray(state.array);
+        const spacingMeters = spacingLambda * wavelength;
+        const phaseStepDeg = (steeringPhaseStep(spacingLambda, state.excitation.steerAngleDeg) * 180) / Math.PI;
         const slowMotion = state.display.cyclesPerSecond > 0
             ? state.excitation.frequencyHz / state.display.cyclesPerSecond
             : Infinity;
 
+        focalLengthReadout.setValue(`${parabolaFocalLength(state.array.curvatureA).toFixed(2)} λ`);
         wavelengthReadout.setValue(`${wavelength.toExponential(3)} m`);
         spacingMetersReadout.setValue(`${spacingMeters.toExponential(3)} m`);
         phaseStepReadout.setValue(`${phaseStepDeg.toFixed(1)}°`);
-        gratingLobeReadout.setValue(state.array.spacingLambda > 0.5 ? "⚠ present (d/λ > 0.5)" : "none (d/λ ≤ 0.5)");
+        gratingLobeReadout.setValue(spacingLambda > 0.5 ? "⚠ present (d/λ > 0.5)" : "none (d/λ ≤ 0.5)");
         slowMotionReadout.setValue(
             Number.isFinite(slowMotion) ? `slowed ${slowMotion.toExponential(2)}×` : "paused (0 cyc/s)"
         );

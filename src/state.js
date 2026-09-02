@@ -29,9 +29,12 @@ export const DEFAULT_VIEW = {
 function createInitialState() {
     return {
         array: {
-            shape: "line",
+            shape: "line", // "line" | "parabola" | "arc"
             elementCount: 8,
-            spacingLambda: 0.5,
+            spacingLambda: 0.5, // arc-length spacing, used by "line" and "parabola"
+            curvatureA: 0.05, // 1/lambda; y = curvatureA * x^2, used by "parabola"
+            radiusLambda: 10, // used by "arc"
+            sweepDeg: 90, // used by "arc"
         },
         excitation: {
             // Steering angle off boresight, degrees. The per-element phase
