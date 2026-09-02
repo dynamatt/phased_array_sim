@@ -9,7 +9,8 @@ import { wrapPhase, TWO_PI } from "./units.js";
 import { DISPLAY_MODES } from "./state.js";
 
 export const MAX_ELEMENTS = 256;
-const MARKER_RADIUS_PX = 5;
+const MARKER_RADIUS_CSS_PX = 5;
+const RESIZE_DEBOUNCE_MS = 50;
 
 // 12 x 4-byte fields, struct alignment 8 (largest member is vec2f) -> must
 // be a multiple of 8. Keep this in lockstep with the SimulationUniforms
@@ -76,11 +77,13 @@ async function createGpuContext(canvas) {
     return { device, context, canvasFormat, pipeline, bindGroup, uniformBuffer, elementsBuffer };
 }
 
-function resizeCanvasToDisplaySize(canvas, gpu) {
+/** Resizes the backing buffer to clientWidth/Height * devicePixelRatio * renderScale, clamped to the device limit. */
+function applyCanvasSize(canvas, gpu, renderScale) {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const maxDim = gpu.device.limits.maxTextureDimension2D;
-    const width = Math.min(maxDim, Math.max(1, Math.floor(canvas.clientWidth * dpr)));
-    const height = Math.min(maxDim, Math.max(1, Math.floor(canvas.clientHeight * dpr)));
+    const scale = Math.max(0.1, renderScale) * dpr;
+    const width = Math.min(maxDim, Math.max(1, Math.round((canvas.clientWidth || 1) * scale)));
+    const height = Math.min(maxDim, Math.max(1, Math.round((canvas.clientHeight || 1) * scale)));
     if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
@@ -124,12 +127,31 @@ export async function startRenderer(canvas, stateStore, { onUnsupported } = {}) 
     const uniformUints = new Uint32Array(uniformArrayBuffer);
     const elementsArray = new Float32Array(MAX_ELEMENTS * 4);
 
+    // Resize is driven by ResizeObserver (debounced) plus explicit
+    // renderScale changes, not polled every frame, so reallocating the
+    // backing buffer only happens when something actually changed.
+    let renderScale = stateStore.get().view.renderScale;
+    applyCanvasSize(canvas, gpu, renderScale);
+
+    let resizeTimer = null;
+    const resizeObserver = new ResizeObserver(() => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => applyCanvasSize(canvas, gpu, renderScale), RESIZE_DEBOUNCE_MS);
+    });
+    resizeObserver.observe(canvas);
+
+    const unsubscribeRenderScale = stateStore.subscribe((state) => {
+        if (state.view.renderScale !== renderScale) {
+            renderScale = state.view.renderScale;
+            applyCanvasSize(canvas, gpu, renderScale);
+        }
+    });
+
     let lastTimestampMs = null;
     let stopped = false;
 
     function frame(nowMs) {
         if (stopped) return;
-        resizeCanvasToDisplaySize(canvas, gpu);
 
         const dtSeconds = lastTimestampMs === null ? 0 : (nowMs - lastTimestampMs) / 1000;
         lastTimestampMs = nowMs;
@@ -150,6 +172,12 @@ export async function startRenderer(canvas, stateStore, { onUnsupported } = {}) 
         const height = canvas.height || 1;
         const worldPerPixel = snapshot.view.fovLambda / width;
         const displayPhase = TWO_PI * snapshot.display.cyclesPerSecond * snapshot.display.timeSeconds;
+        // Backing buffer can be smaller than the CSS box (devicePixelRatio,
+        // renderScale), so a marker radius fixed in *backing* pixels would
+        // visibly shrink as renderScale drops. Convert from a CSS pixel
+        // radius using the actual backing:CSS ratio instead.
+        const backingPerCssPixel = width / (canvas.clientWidth || 1);
+        const markerRadiusPx = MARKER_RADIUS_CSS_PX * backingPerCssPixel;
 
         uniformFloats[0] = width;
         uniformFloats[1] = height;
@@ -158,7 +186,7 @@ export async function startRenderer(canvas, stateStore, { onUnsupported } = {}) 
         uniformFloats[4] = worldPerPixel;
         uniformFloats[5] = displayPhase;
         uniformFloats[6] = snapshot.display.gain;
-        uniformFloats[7] = MARKER_RADIUS_PX;
+        uniformFloats[7] = markerRadiusPx;
         uniformUints[8] = elementCount;
         uniformUints[9] = DISPLAY_MODES[snapshot.display.mode] ?? 0;
         uniformUints[10] = snapshot.display.spreadingEnabled ? 1 : 0;
@@ -183,6 +211,9 @@ export async function startRenderer(canvas, stateStore, { onUnsupported } = {}) 
     return {
         stop() {
             stopped = true;
+            resizeObserver.disconnect();
+            clearTimeout(resizeTimer);
+            unsubscribeRenderScale();
         },
     };
 }

@@ -56,3 +56,33 @@ export function wrapPhase(phaseRad) {
 export function wavelengthMeters(speedMps, frequencyHz) {
     return speedMps / frequencyHz;
 }
+
+/**
+ * A view (center + horizontal field of view) that frames `points` with a
+ * margin, given the canvas's pixel aspect ratio. Horizontal FOV is the
+ * controlling parameter (see ViewState); the vertical extent that results
+ * must still cover the points' y-span, so a tall/narrow point cloud on a
+ * wide canvas needs a larger FOV than its x-span alone would suggest.
+ * @param {{x:number, y:number}[]} points
+ * @param {number} canvasWidth
+ * @param {number} canvasHeight
+ * @param {number} [marginFactor] e.g. 1.3 for a 30% margin around the tight fit
+ * @returns {{centerX:number, centerY:number, fovLambda:number} | null}
+ */
+export function computeFitView(points, canvasWidth, canvasHeight, marginFactor = 1.3) {
+    if (points.length === 0 || canvasWidth <= 0 || canvasHeight <= 0) {
+        return null;
+    }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of points) {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+    }
+    const aspect = canvasWidth / canvasHeight;
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    const fovLambda = Math.max(spanX, spanY * aspect, 1e-6) * marginFactor;
+    return { centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2, fovLambda };
+}

@@ -19,6 +19,13 @@ export const DISPLAY_MODES = {
     dB: 2,
 };
 
+/** The view the '0' reset shortcut and initial load use. */
+export const DEFAULT_VIEW = {
+    centerX: 0,
+    centerY: 0,
+    fovLambda: 12,
+};
+
 function createInitialState() {
     return {
         array: {
@@ -40,9 +47,10 @@ function createInitialState() {
             timeSeconds: 0,
         },
         view: {
-            centerX: 0,
-            centerY: 0,
-            fovLambda: 12,
+            centerX: DEFAULT_VIEW.centerX,
+            centerY: DEFAULT_VIEW.centerY,
+            fovLambda: DEFAULT_VIEW.fovLambda,
+            renderScale: 1,
         },
     };
 }
