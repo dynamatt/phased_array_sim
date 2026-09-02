@@ -4,31 +4,66 @@
     <meta charset="UTF-8">
     <title>Phased Array Simulation</title>
     <style>
-        body { margin: 0; background: #111; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        canvas { border: 1px solid #444; max-width: 90vw; max-height: 80vh; }
+        body { margin: 0; background: #111; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+        canvas { border: 1px solid #444; width: 800px; height: 600px; max-width: 90vw; }
         #controls { display: grid; gap: 0.5rem; width: min(800px, 90vw); margin-top: 1rem; }
-        #controls label { display: flex; justify-content: space-between; font-size: 0.95rem; }
+        #controls fieldset { border: 1px solid #333; border-radius: 4px; margin: 0; }
+        #controls legend { padding: 0 0.4rem; color: #9cf; }
+        #controls label { display: flex; justify-content: space-between; font-size: 0.95rem; margin-top: 0.35rem; }
         #controls input[type=range] { width: 100%; }
+        .radioRow { display: flex; gap: 1rem; font-size: 0.95rem; }
         #computedValues { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; margin-top: 0.75rem; color: #ddd; font-size: 0.95rem; }
+        #unsupportedPanel { max-width: 480px; text-align: center; color: #f88; }
     </style>
 </head>
 <body>
     <h1>Phased Array Wave Simulation</h1>
-    <canvas id="gpuCanvas" width="800" height="800"></canvas>
+    <canvas id="gpuCanvas"></canvas>
     <div id="controls">
-        <label for="freqSlider">Frequency: <span id="freqValue">40</span> Hz</label>
-        <input id="freqSlider" type="range" min="1" max="100" step="1" value="40">
-        <label for="phaseSlider">Phase step: <span id="phaseValue">0</span>°</label>
-        <input id="phaseSlider" type="range" min="-180" max="180" step="1" value="0">
-        <label for="antennaSlider">Antenna count: <span id="antennaValue">4</span></label>
-        <input id="antennaSlider" type="range" min="1" max="16" step="1" value="4">
-        <label for="spacingSlider">Antenna spacing: <span id="spacingValue">0.50</span> λ</label>
-        <input id="spacingSlider" type="range" min="0.1" max="2.0" step="0.05" value="0.5">
+        <fieldset>
+            <legend>Array</legend>
+            <label for="elementCountInput">Element count: <span id="elementCountReadout">8</span></label>
+            <input id="elementCountInput" type="range" min="1" max="16" step="1" value="8">
+            <label for="spacingInput">Spacing: <span id="spacingReadout">0.50</span> &lambda;</label>
+            <input id="spacingInput" type="range" min="0.1" max="2.0" step="0.05" value="0.5">
+        </fieldset>
+        <fieldset>
+            <legend>Excitation</legend>
+            <label for="phaseStepInput">Phase step per element: <span id="phaseStepReadout">0°</span></label>
+            <input id="phaseStepInput" type="range" min="-180" max="180" step="1" value="0">
+            <label for="mediumInput">Medium</label>
+            <select id="mediumInput">
+                <option value="air">Air (343 m/s)</option>
+                <option value="water">Water (1480 m/s)</option>
+                <option value="tissue" selected>Soft tissue (1540 m/s)</option>
+                <option value="vacuum">Vacuum / light (3.0e8 m/s)</option>
+            </select>
+            <label for="frequencyInput">Frequency: <span id="frequencyReadout"></span></label>
+            <input id="frequencyInput" type="range" min="1" max="10" step="0.01" value="6">
+        </fieldset>
+        <fieldset>
+            <legend>Display</legend>
+            <div class="radioRow">
+                <label><input type="radio" name="displayMode" value="instantaneous" checked> Instantaneous</label>
+                <label><input type="radio" name="displayMode" value="envelope"> Envelope</label>
+                <label><input type="radio" name="displayMode" value="dB"> dB</label>
+            </div>
+            <label for="cyclesInput">Display rate: <span id="cyclesReadout">0.50 cyc/s</span></label>
+            <input id="cyclesInput" type="range" min="0" max="5" step="0.1" value="0.5">
+            <label for="gainInput">Gain: <span id="gainReadout">0.150</span></label>
+            <input id="gainInput" type="range" min="0.01" max="1" step="0.005" value="0.15">
+            <label><input id="spreadingInput" type="checkbox" checked> Spreading loss (1/&radic;r)</label>
+        </fieldset>
+        <div id="computedValues">
+            <span>Wavelength: <span id="wavelengthReadout"></span></span>
+            <span>Spacing: <span id="spacingMetersReadout"></span></span>
+            <span id="slowMotionReadout"></span>
+        </div>
     </div>
-    <div id="computedValues">
-        <span id="wavelengthText">Wavelength: 38.50 m</span>
-        <span id="spacingText">Spacing: 19.25 m</span>
+    <div id="unsupportedPanel" hidden>
+        <p>This simulation needs WebGPU, which isn't available in this browser.</p>
+        <p id="unsupportedDetail"></p>
     </div>
-    <p>Simulating antenna elements calculating wave interference in real-time.</p>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="src/main.js"></script>
 </body>
+</html>
