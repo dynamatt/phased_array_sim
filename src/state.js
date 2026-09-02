@@ -34,7 +34,11 @@ function createInitialState() {
             spacingLambda: 0.5,
         },
         excitation: {
-            phaseStepRad: 0,
+            // Steering angle off boresight, degrees. The per-element phase
+            // step is derived from this (see units.js steeringPhaseStep),
+            // not stored directly, so it stays meaningful across changes to
+            // spacing (CLAUDE.md 5.4).
+            steerAngleDeg: 0,
             medium: "tissue",
             frequencyHz: 1e6,
         },

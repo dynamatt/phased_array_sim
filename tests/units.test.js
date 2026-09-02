@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { screenToWorld, worldToScreen, wrapPhase, wavelengthMeters, computeFitView } from "../src/units.js";
+import { screenToWorld, worldToScreen, wrapPhase, wavelengthMeters, computeFitView, steeringPhaseStep } from "../src/units.js";
 
 test("screen -> world -> screen round-trips for arbitrary points", () => {
     const view = { width: 800, height: 600, centerX: 1.25, centerY: -0.5, worldPerPixel: 0.015 };
@@ -72,4 +72,30 @@ test("computeFitView accounts for aspect ratio when the y-span dominates", () =>
 
 test("computeFitView returns null for an empty point set", () => {
     assert.equal(computeFitView([], 800, 600), null);
+});
+
+test("steeringPhaseStep is zero at boresight", () => {
+    assert.ok(Math.abs(steeringPhaseStep(0.5, 0)) < 1e-9);
+});
+
+test("steeringPhaseStep matches -2*pi*(d/lambda)*sin(theta)", () => {
+    const spacingLambda = 0.5;
+    const steerAngleDeg = 30;
+    const expected = -2 * Math.PI * spacingLambda * Math.sin((steerAngleDeg * Math.PI) / 180);
+    assert.ok(Math.abs(steeringPhaseStep(spacingLambda, steerAngleDeg) - expected) < 1e-9);
+});
+
+test("steeringPhaseStep is linear in spacingLambda", () => {
+    // Only d/lambda and the angle matter -- doubling the spacing (in
+    // wavelengths) must exactly double the phase step, with no dependence
+    // on any absolute frequency the caller might have in mind.
+    const base = steeringPhaseStep(0.4, 30);
+    const doubled = steeringPhaseStep(0.8, 30);
+    assert.ok(Math.abs(doubled - 2 * base) < 1e-9);
+});
+
+test("steeringPhaseStep is odd in the steering angle", () => {
+    const positive = steeringPhaseStep(0.4, 20);
+    const negative = steeringPhaseStep(0.4, -20);
+    assert.ok(Math.abs(positive + negative) < 1e-9);
 });

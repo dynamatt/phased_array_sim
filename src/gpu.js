@@ -5,7 +5,7 @@
  */
 
 import { layoutElements } from "./geometry.js";
-import { wrapPhase, TWO_PI } from "./units.js";
+import { wrapPhase, TWO_PI, steeringPhaseStep } from "./units.js";
 import { DISPLAY_MODES } from "./state.js";
 
 export const MAX_ELEMENTS = 256;
@@ -95,8 +95,9 @@ function applyCanvasSize(canvas, gpu, renderScale) {
 function packElements(target, snapshot) {
     const positions = layoutElements(snapshot.array.shape, { spacingLambda: snapshot.array.spacingLambda }, snapshot.array.elementCount);
     const n = Math.min(positions.length, MAX_ELEMENTS);
+    const phaseStepRad = steeringPhaseStep(snapshot.array.spacingLambda, snapshot.excitation.steerAngleDeg);
     for (let i = 0; i < n; i++) {
-        const phaseRad = wrapPhase(i * snapshot.excitation.phaseStepRad);
+        const phaseRad = wrapPhase(i * phaseStepRad);
         target[i * 4 + 0] = positions[i].x;
         target[i * 4 + 1] = positions[i].y;
         target[i * 4 + 2] = phaseRad;

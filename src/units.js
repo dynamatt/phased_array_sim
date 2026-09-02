@@ -86,3 +86,17 @@ export function computeFitView(points, canvasWidth, canvasHeight, marginFactor =
     const fovLambda = Math.max(spanX, spanY * aspect, 1e-6) * marginFactor;
     return { centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2, fovLambda };
 }
+
+/**
+ * Per-element phase step for a uniform line array steered to `steerAngleDeg`
+ * off boresight (CLAUDE.md 5.4): deltaPhi = -2*pi*(d/lambda)*sin(theta).
+ * Frequency-independent by construction: only d/lambda and the angle matter,
+ * which is why the UI exposes an angle rather than a raw phase step.
+ * @param {number} spacingLambda
+ * @param {number} steerAngleDeg
+ * @returns {number} radians
+ */
+export function steeringPhaseStep(spacingLambda, steerAngleDeg) {
+    const steerAngleRad = (steerAngleDeg * Math.PI) / 180;
+    return -TWO_PI * spacingLambda * Math.sin(steerAngleRad);
+}

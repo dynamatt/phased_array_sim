@@ -52,9 +52,35 @@ fn fragToWorld(fragCoord: vec2f) -> vec2f {
     return uniforms.centerWorld + vec2f(centered.x, -centered.y) * uniforms.worldPerPixel;
 }
 
-fn colorFromIntensity(intensity: f32) -> vec4f {
-    let i = clamp(intensity, 0.0, 1.0);
-    return vec4f(i * 0.2, i * 0.8, i, 1.0);
+// Signed values (instantaneous mode) get a diverging blue<->black<->amber
+// ramp so sign is visible at a glance, not just magnitude.
+fn colorDiverging(value: f32) -> vec4f {
+    let v = clamp(value, -1.0, 1.0);
+    let zero = vec3f(0.02, 0.02, 0.03);
+    let neg = vec3f(0.25, 0.45, 0.95);
+    let pos = vec3f(0.98, 0.65, 0.04);
+    return vec4f(select(mix(zero, neg, -v), mix(zero, pos, v), v >= 0.0), 1.0);
+}
+
+// Magnitude values (envelope, dB) get a sequential black->purple->amber->pale
+// yellow ramp (a hand-rolled approximation of matplotlib's "inferno"), since
+// there's no sign to show, only how strong.
+fn infernoColor(t: f32) -> vec3f {
+    let tt = clamp(t, 0.0, 1.0);
+    let c0 = vec3f(0.001, 0.000, 0.014);
+    let c1 = vec3f(0.258, 0.038, 0.406);
+    let c2 = vec3f(0.578, 0.148, 0.404);
+    let c3 = vec3f(0.865, 0.317, 0.226);
+    let c4 = vec3f(0.988, 0.645, 0.039);
+    let c5 = vec3f(0.988, 0.998, 0.645);
+    let scaled = tt * 5.0;
+    let seg = floor(scaled);
+    let frac = scaled - seg;
+    if (seg < 1.0) { return mix(c0, c1, frac); }
+    if (seg < 2.0) { return mix(c1, c2, frac); }
+    if (seg < 3.0) { return mix(c2, c3, frac); }
+    if (seg < 4.0) { return mix(c3, c4, frac); }
+    return mix(c4, c5, frac);
 }
 
 @fragment
@@ -92,18 +118,18 @@ fn fragment_main(@builtin(position) fragCoord: vec4f) -> @location(0) vec4f {
     }
 
     let envelope = sqrt(sumReal * sumReal + sumImag * sumImag);
-    var value: f32;
     if (uniforms.displayMode == 0u) {
-        // instantaneous = Re(A * exp(-i * displayPhase))
+        // instantaneous = Re(A * exp(-i * displayPhase)); signed, diverging color.
         let cp = cos(uniforms.displayPhase);
         let sp = sin(uniforms.displayPhase);
-        value = (sumReal * cp + sumImag * sp) * uniforms.gain * 0.5 + 0.5;
+        let value = (sumReal * cp + sumImag * sp) * uniforms.gain;
+        return colorDiverging(value);
     } else if (uniforms.displayMode == 1u) {
-        value = envelope * uniforms.gain;
+        let value = envelope * uniforms.gain;
+        return vec4f(infernoColor(value), 1.0);
     } else {
         let dB = 20.0 * log2(max(envelope * uniforms.gain, EPS) / AMP_REF) / log2(10.0);
-        value = (dB - DB_FLOOR) / -DB_FLOOR;
+        let value = (dB - DB_FLOOR) / -DB_FLOOR;
+        return vec4f(infernoColor(value), 1.0);
     }
-
-    return colorFromIntensity(value);
 }

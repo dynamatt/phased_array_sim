@@ -4,84 +4,105 @@
     <meta charset="UTF-8">
     <title>Phased Array Simulation</title>
     <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color: white; font-family: sans-serif; }
+        :root {
+            --text: #f2f2f2;
+            --text-dim: #9aa0a6;
+            --glass-bg: rgba(12, 14, 18, 0.55);
+            --glass-border: rgba(255, 255, 255, 0.10);
+            --glass-blur: 16px;
+            --accent: #f7a828;
+            --accent-dim: rgba(247, 168, 40, 0.35);
+            --radius: 12px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+        }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color: var(--text); font-family: sans-serif; }
         canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
         canvas:active { cursor: grabbing; }
+
         #controls {
             position: fixed;
             top: 1rem;
             left: 1rem;
             width: min(320px, calc(100vw - 2rem));
-            max-height: calc(100vh - 2rem);
-            overflow-y: auto;
-            background: rgba(17, 17, 17, 0.85);
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            transition: opacity 0.2s ease;
         }
-        #controls h1 { margin: 0 0 0.5rem; font-size: 1.1rem; }
-        #controls fieldset { border: 1px solid #333; border-radius: 4px; margin: 0.6rem 0 0; }
-        #controls legend { padding: 0 0.4rem; color: #9cf; }
-        #controls label { display: flex; justify-content: space-between; font-size: 0.95rem; margin-top: 0.35rem; }
-        #controls input[type=range] { width: 100%; }
-        .radioRow { display: flex; gap: 1rem; font-size: 0.95rem; }
-        #computedValues { display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.6rem; color: #ddd; font-size: 0.9rem; }
-        #viewHint { margin-top: 0.6rem; color: #888; font-size: 0.8rem; }
-        #fitButton { width: 100%; margin-top: 0.35rem; padding: 0.3rem; background: #223; color: white; border: 1px solid #446; border-radius: 4px; cursor: pointer; }
+        #controls.chrome-hidden { opacity: 0; pointer-events: none; }
+
+        .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0.9rem; flex: 0 0 auto; }
+        .panel-header h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+        .panel-collapse-btn {
+            background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--text);
+            width: 1.6rem; height: 1.6rem; border-radius: 50%; cursor: pointer; font-size: 1rem; line-height: 1;
+            display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+        }
+        .panel-collapse-btn:hover { background: rgba(255, 255, 255, 0.16); }
+
+        .panel-body {
+            padding: 0 0.9rem 0.9rem; overflow-y: auto; max-height: 80vh; opacity: 1;
+            transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+        }
+        .panel-body.collapsed { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; overflow: hidden; }
+
+        .ctl-section { border-top: 1px solid var(--glass-border); padding-top: 0.6rem; margin-top: 0.6rem; }
+        .ctl-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+        .ctl-section summary {
+            cursor: pointer; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--accent); margin-bottom: 0.3rem; list-style: none;
+        }
+        .ctl-section summary::-webkit-details-marker { display: none; }
+        .ctl-section summary::before { content: "\25b8  "; display: inline-block; transition: transform 0.15s ease; }
+        .ctl-section[open] summary::before { transform: rotate(90deg); }
+
+        .ctl-label { display: flex; justify-content: space-between; font-size: 0.9rem; margin-top: 0.5rem; }
+        .ctl-value { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+
+        .ctl-range {
+            width: 100%; -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; margin-top: 0.35rem; cursor: pointer;
+            background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--fill, 0%), rgba(255, 255, 255, 0.15) var(--fill, 0%), rgba(255, 255, 255, 0.15) 100%);
+        }
+        .ctl-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid #1a1a1a; cursor: pointer; margin-top: -5px; }
+        .ctl-range::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid #1a1a1a; cursor: pointer; }
+        .ctl-range::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); }
+        .ctl-range::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+
+        .ctl-knob-dial { display: block; margin: 0.3rem auto 0; cursor: grab; touch-action: none; }
+        .ctl-knob-dial:focus { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 50%; }
+        .ctl-knob-ring { fill: rgba(255, 255, 255, 0.05); stroke: var(--glass-border); stroke-width: 1.5; }
+        .ctl-knob-tick { stroke: var(--text-dim); stroke-width: 1.5; }
+        .ctl-knob-needle { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+
+        .ctl-segmented { margin-top: 0.5rem; }
+        .ctl-segmented-row { display: flex; border: 1px solid var(--glass-border); border-radius: 8px; overflow: hidden; }
+        .ctl-segmented-btn { flex: 1; background: transparent; color: var(--text-dim); border: none; padding: 0.35rem 0; font-size: 0.85rem; cursor: pointer; }
+        .ctl-segmented-btn + .ctl-segmented-btn { border-left: 1px solid var(--glass-border); }
+        .ctl-segmented-btn.selected { background: var(--accent-dim); color: var(--text); }
+
+        .ctl-toggle { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.6rem; font-size: 0.9rem; cursor: pointer; }
+
+        .ctl-select { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.5rem; font-size: 0.9rem; }
+        .ctl-select select { background: rgba(255, 255, 255, 0.06); color: var(--text); border: 1px solid var(--glass-border); border-radius: 6px; padding: 0.25rem; }
+
+        .ctl-readout { display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 0.4rem; color: var(--text-dim); }
+        .ctl-readout-value { font-variant-numeric: tabular-nums; color: var(--text); }
+
+        .ctl-button { width: 100%; margin-top: 0.5rem; padding: 0.4rem; background: rgba(255, 255, 255, 0.08); color: var(--text); border: 1px solid var(--glass-border); border-radius: 6px; cursor: pointer; }
+        .ctl-button:hover { background: rgba(255, 255, 255, 0.16); }
+
+        .view-hint { margin-top: 0.6rem; color: var(--text-dim); font-size: 0.75rem; line-height: 1.4; }
+
         #unsupportedPanel:not([hidden]) { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; max-width: 480px; margin: auto; text-align: center; color: #f88; }
     </style>
 </head>
 <body>
     <canvas id="gpuCanvas"></canvas>
-    <div id="controls">
-        <h1>Phased Array Wave Simulation</h1>
-        <fieldset>
-            <legend>Array</legend>
-            <label for="elementCountInput">Element count: <span id="elementCountReadout">8</span></label>
-            <input id="elementCountInput" type="range" min="1" max="16" step="1" value="8">
-            <label for="spacingInput">Spacing: <span id="spacingReadout">0.50</span> &lambda;</label>
-            <input id="spacingInput" type="range" min="0.1" max="2.0" step="0.05" value="0.5">
-        </fieldset>
-        <fieldset>
-            <legend>Excitation</legend>
-            <label for="phaseStepInput">Phase step per element: <span id="phaseStepReadout">0°</span></label>
-            <input id="phaseStepInput" type="range" min="-180" max="180" step="1" value="0">
-            <label for="mediumInput">Medium</label>
-            <select id="mediumInput">
-                <option value="air">Air (343 m/s)</option>
-                <option value="water">Water (1480 m/s)</option>
-                <option value="tissue" selected>Soft tissue (1540 m/s)</option>
-                <option value="vacuum">Vacuum / light (3.0e8 m/s)</option>
-            </select>
-            <label for="frequencyInput">Frequency: <span id="frequencyReadout"></span></label>
-            <input id="frequencyInput" type="range" min="1" max="10" step="0.01" value="6">
-        </fieldset>
-        <fieldset>
-            <legend>Display</legend>
-            <div class="radioRow">
-                <label><input type="radio" name="displayMode" value="instantaneous" checked> Instantaneous</label>
-                <label><input type="radio" name="displayMode" value="envelope"> Envelope</label>
-                <label><input type="radio" name="displayMode" value="dB"> dB</label>
-            </div>
-            <label for="cyclesInput">Display rate: <span id="cyclesReadout">0.50 cyc/s</span></label>
-            <input id="cyclesInput" type="range" min="0" max="5" step="0.1" value="0.5">
-            <label for="gainInput">Gain: <span id="gainReadout">0.150</span></label>
-            <input id="gainInput" type="range" min="0.01" max="1" step="0.005" value="0.15">
-            <label><input id="spreadingInput" type="checkbox" checked> Spreading loss (1/&radic;r)</label>
-        </fieldset>
-        <fieldset>
-            <legend>View</legend>
-            <label for="renderScaleInput">Render scale: <span id="renderScaleReadout">1.00</span></label>
-            <input id="renderScaleInput" type="range" min="0.25" max="1" step="0.05" value="1">
-            <button id="fitButton" type="button">Fit array</button>
-            <div id="viewHint">Scroll to zoom, drag to pan, press 0 to reset the view.</div>
-        </fieldset>
-        <div id="computedValues">
-            <span>Wavelength: <span id="wavelengthReadout"></span></span>
-            <span>Spacing: <span id="spacingMetersReadout"></span></span>
-            <span id="slowMotionReadout"></span>
-        </div>
-    </div>
     <div id="unsupportedPanel" hidden>
         <p>This simulation needs WebGPU, which isn't available in this browser.</p>
         <p id="unsupportedDetail"></p>
