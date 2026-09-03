@@ -12,28 +12,74 @@ function nextId(prefix) {
     return `${prefix}-${idCounter}`;
 }
 
-function createLabelRow(labelText) {
-    const row = document.createElement("div");
-    row.className = "ctl-label";
-    const text = document.createElement("span");
-    text.textContent = labelText;
-    const value = document.createElement("span");
-    value.className = "ctl-value";
-    row.append(text, value);
-    return { row, value };
+/**
+ * A "(?)" button that expands an inline paragraph explaining the physics
+ * behind a control, since this sim exists to build intuition, not just draw
+ * a picture (CLAUDE.md 1, PLAN.md Phase 2 task 7). Click/tap to toggle
+ * (not hover-only) so it works on touch and doesn't clutter the panel by
+ * default.
+ * @param {string} helpText
+ * @returns {{button: HTMLButtonElement, panel: HTMLDivElement}}
+ */
+function createHelp(helpText) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ctl-help-btn";
+    button.textContent = "?";
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-label", "What does this control show?");
+
+    const panelEl = document.createElement("div");
+    panelEl.className = "ctl-help-text";
+    panelEl.hidden = true;
+    panelEl.textContent = helpText;
+
+    button.addEventListener("click", () => {
+        const expanded = !panelEl.hidden;
+        panelEl.hidden = expanded;
+        button.setAttribute("aria-expanded", String(!expanded));
+    });
+
+    return { button, panel: panelEl };
 }
 
 /**
- * @param {{label:string, min:number, max:number, step:number, value:number, format?:(v:number)=>string, onChange:(v:number)=>void}} opts
+ * @param {string} labelText
+ * @param {string} [helpText] when given, adds a "(?)" expand button after the label.
+ */
+function createLabelRow(labelText, helpText) {
+    const row = document.createElement("div");
+    row.className = "ctl-label";
+    const text = document.createElement("span");
+    text.className = "ctl-label-text";
+    text.textContent = labelText;
+    const value = document.createElement("span");
+    value.className = "ctl-value";
+
+    let help = null;
+    if (helpText) {
+        help = createHelp(helpText);
+        const left = document.createElement("span");
+        left.className = "ctl-label-left";
+        left.append(text, help.button);
+        row.append(left, value);
+    } else {
+        row.append(text, value);
+    }
+    return { row, value, help };
+}
+
+/**
+ * @param {{label:string, min:number, max:number, step:number, value:number, format?:(v:number)=>string, onChange:(v:number)=>void, help?:string}} opts
  */
 export function createSlider(opts) {
-    const { label, min, max, step, value, format = (v) => String(v), onChange } = opts;
+    const { label, min, max, step, value, format = (v) => String(v), onChange, help } = opts;
     const id = nextId("slider");
 
     const wrap = document.createElement("div");
     wrap.className = "ctl-slider";
 
-    const { row: labelRow, value: valueText } = createLabelRow(label);
+    const { row: labelRow, value: valueText, help: helpParts } = createLabelRow(label, help);
     labelRow.id = `${id}-label`;
 
     const input = document.createElement("input");
@@ -87,6 +133,7 @@ export function createSlider(opts) {
 
     setValue(value, { silent: true });
     wrap.append(labelRow, input);
+    if (helpParts) wrap.appendChild(helpParts.panel);
     return { element: wrap, setValue };
 }
 
@@ -94,10 +141,10 @@ export function createSlider(opts) {
  * A small SVG dial. Value range [min, max] maps onto a 270deg arc (leaving a
  * gap at the bottom, like a real gimbal's mechanical stop), with 0deg
  * pointing straight up.
- * @param {{label:string, min:number, max:number, value:number, format?:(v:number)=>string, onChange:(v:number)=>void}} opts
+ * @param {{label:string, min:number, max:number, value:number, format?:(v:number)=>string, onChange:(v:number)=>void, help?:string}} opts
  */
 export function createKnob(opts) {
-    const { label, min, max, value, format = (v) => `${v.toFixed(0)}°`, onChange } = opts;
+    const { label, min, max, value, format = (v) => `${v.toFixed(0)}°`, onChange, help } = opts;
     const size = 68;
     const center = size / 2;
     const radius = size / 2 - 8;
@@ -105,7 +152,7 @@ export function createKnob(opts) {
 
     const wrap = document.createElement("div");
     wrap.className = "ctl-knob";
-    const { row: labelRow, value: valueText } = createLabelRow(label);
+    const { row: labelRow, value: valueText, help: helpParts } = createLabelRow(label, help);
 
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
@@ -198,22 +245,23 @@ export function createKnob(opts) {
 
     render(current);
     wrap.append(labelRow, svg);
+    if (helpParts) wrap.appendChild(helpParts.panel);
     return { element: wrap, setValue };
 }
 
 /**
- * @param {{label?:string, options:{value:string,label:string}[], value:string, onChange:(v:string)=>void}} opts
+ * @param {{label?:string, options:{value:string,label:string}[], value:string, onChange:(v:string)=>void, help?:string}} opts
  */
 export function createSegmented(opts) {
-    const { label, options, value, onChange } = opts;
+    const { label, options, value, onChange, help } = opts;
     const wrap = document.createElement("div");
     wrap.className = "ctl-segmented";
 
+    let helpParts = null;
     if (label) {
-        const labelEl = document.createElement("div");
-        labelEl.className = "ctl-label";
-        labelEl.textContent = label;
-        wrap.appendChild(labelEl);
+        const { row: labelRow, help: parts } = createLabelRow(label, help);
+        helpParts = parts;
+        wrap.appendChild(labelRow);
     }
 
     const row = document.createElement("div");
@@ -244,19 +292,25 @@ export function createSegmented(opts) {
 
     setValue(value, { silent: true });
     wrap.appendChild(row);
+    if (helpParts) wrap.appendChild(helpParts.panel);
     return { element: wrap, setValue };
 }
 
 /**
- * @param {{label:string, checked:boolean, onChange:(v:boolean)=>void}} opts
+ * @param {{label:string, checked:boolean, onChange:(v:boolean)=>void, help?:string}} opts
  */
 export function createToggle(opts) {
-    const { label, checked, onChange } = opts;
+    const { label, checked, onChange, help } = opts;
     const id = nextId("toggle");
 
-    const wrap = document.createElement("label");
-    wrap.className = "ctl-toggle";
-    wrap.setAttribute("for", id);
+    const outer = document.createElement("div");
+    outer.className = "ctl-toggle-row";
+
+    // The (?) button must not be a descendant of the <label>: a click on it
+    // would otherwise also toggle the associated checkbox in some browsers.
+    const toggleLabel = document.createElement("label");
+    toggleLabel.className = "ctl-toggle";
+    toggleLabel.setAttribute("for", id);
 
     const input = document.createElement("input");
     input.type = "checkbox";
@@ -267,28 +321,46 @@ export function createToggle(opts) {
     const text = document.createElement("span");
     text.textContent = label;
 
-    wrap.append(input, text);
+    toggleLabel.append(input, text);
+    outer.appendChild(toggleLabel);
+
+    let helpParts = null;
+    if (help) {
+        helpParts = createHelp(help);
+        outer.appendChild(helpParts.button);
+    }
 
     function setValue(v, { silent = false } = {}) {
         input.checked = v;
         if (!silent) onChange(v);
     }
-    return { element: wrap, setValue };
+    const element = outer;
+    if (helpParts) element.appendChild(helpParts.panel);
+    return { element, setValue };
 }
 
 /**
- * @param {{label:string, options:{value:string,label:string}[], value:string, onChange:(v:string)=>void}} opts
+ * @param {{label:string, options:{value:string,label:string}[], value:string, onChange:(v:string)=>void, help?:string}} opts
  */
 export function createSelect(opts) {
-    const { label, options, value, onChange } = opts;
+    const { label, options, value, onChange, help } = opts;
     const id = nextId("select");
 
     const wrap = document.createElement("div");
     wrap.className = "ctl-select";
 
+    const labelRow = document.createElement("div");
+    labelRow.className = "ctl-select-label-row";
     const labelEl = document.createElement("label");
     labelEl.setAttribute("for", id);
     labelEl.textContent = label;
+    labelRow.appendChild(labelEl);
+
+    let helpParts = null;
+    if (help) {
+        helpParts = createHelp(help);
+        labelRow.appendChild(helpParts.button);
+    }
 
     const select = document.createElement("select");
     select.id = id;
@@ -301,21 +373,39 @@ export function createSelect(opts) {
     }
     select.addEventListener("input", () => onChange(select.value));
 
-    wrap.append(labelEl, select);
+    wrap.append(labelRow, select);
+    if (helpParts) wrap.appendChild(helpParts.panel);
     return { element: wrap, setValue: (v) => { select.value = v; } };
 }
 
-/** A read-only label/value pair for derived quantities. */
-export function createReadout(label) {
-    const wrap = document.createElement("div");
-    wrap.className = "ctl-readout";
+/**
+ * A read-only label/value pair for derived quantities.
+ * @param {string} label
+ * @param {string} [help] when given, adds a "(?)" expand button after the label.
+ */
+export function createReadout(label, help) {
+    const outer = document.createElement("div");
+
+    const row = document.createElement("div");
+    row.className = "ctl-readout";
+    const labelWrap = document.createElement("span");
+    labelWrap.className = "ctl-readout-label";
     const labelEl = document.createElement("span");
-    labelEl.className = "ctl-readout-label";
     labelEl.textContent = label;
+    labelWrap.appendChild(labelEl);
+
+    let helpParts = null;
+    if (help) {
+        helpParts = createHelp(help);
+        labelWrap.appendChild(helpParts.button);
+    }
+
     const valueEl = document.createElement("span");
     valueEl.className = "ctl-readout-value";
-    wrap.append(labelEl, valueEl);
-    return { element: wrap, setValue: (text) => { valueEl.textContent = text; } };
+    row.append(labelWrap, valueEl);
+    outer.appendChild(row);
+    if (helpParts) outer.appendChild(helpParts.panel);
+    return { element: outer, setValue: (text) => { valueEl.textContent = text; } };
 }
 
 /** @param {string} label @param {() => void} onClick */

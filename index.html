@@ -69,7 +69,20 @@
         .ctl-section[open] summary::before { transform: rotate(90deg); }
 
         .ctl-label { display: flex; justify-content: space-between; font-size: 0.9rem; margin-top: 0.5rem; }
+        .ctl-label-left { display: flex; align-items: center; gap: 0.35rem; }
         .ctl-value { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+
+        .ctl-help-btn {
+            width: 1.1rem; height: 1.1rem; flex: 0 0 auto; border-radius: 50%; cursor: pointer; line-height: 1;
+            display: flex; align-items: center; justify-content: center; font-size: 0.65rem;
+            background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--text-dim);
+        }
+        .ctl-help-btn:hover { background: rgba(255, 255, 255, 0.16); color: var(--text); }
+        .ctl-help-btn[aria-expanded="true"] { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+        .ctl-help-text {
+            margin-top: 0.35rem; padding: 0.45rem 0.55rem; background: rgba(255, 255, 255, 0.04);
+            border-left: 2px solid var(--accent-dim); border-radius: 4px; font-size: 0.78rem; line-height: 1.45; color: var(--text-dim);
+        }
 
         .ctl-range {
             width: 100%; -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; margin-top: 0.35rem; cursor: pointer;
@@ -92,9 +105,11 @@
         .ctl-segmented-btn + .ctl-segmented-btn { border-left: 1px solid var(--glass-border); }
         .ctl-segmented-btn.selected { background: var(--accent-dim); color: var(--text); }
 
-        .ctl-toggle { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.6rem; font-size: 0.9rem; cursor: pointer; }
+        .ctl-toggle-row { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.6rem; }
+        .ctl-toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer; }
 
         .ctl-select { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.5rem; font-size: 0.9rem; }
+        .ctl-select-label-row { display: flex; align-items: center; gap: 0.35rem; }
         .ctl-select select { background: rgba(255, 255, 255, 0.06); color: var(--text); border: 1px solid var(--glass-border); border-radius: 6px; padding: 0.25rem; }
         .ctl-select select option { background: #1a1a1a; color: var(--text); }
 

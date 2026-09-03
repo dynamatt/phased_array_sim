@@ -122,6 +122,20 @@ No new features. The goal is that the app looks and behaves as it does now
    `.` single-steps a frame.
 6. Every control keyboard-accessible and labelled. Pointer events (not mouse
    events) so it works on a touchscreen.
+7. **Educational tooltips on every control**, since the sim's whole purpose is
+   building intuition for phased arrays, not just producing a picture (see
+   `CLAUDE.md` §1). Priority is the **display-mode selector**
+   (instantaneous / envelope / dB): each option's tooltip should say what's
+   physically being shown — e.g. "Instantaneous: the real part of the field
+   at this moment, `Re(A·e^{-iωt})` — what you'd see with a strobe";
+   "Envelope: `|A|`, the time-averaged intensity pattern, showing focal spot
+   and sidelobes without the animation"; "dB: `20·log10(|A|/A_ref)`, the same
+   envelope on a log scale to reveal sidelobe levels many dB down." Extend the
+   same treatment to steering angle, `d/λ`, grating-lobe warnings, slow-motion
+   factor, and the parabola/arc shape params — anywhere a control encodes a
+   physics concept rather than a plain UI choice.
+8. Reuse one tooltip primitive (`ui/controls.js`) for all of these rather than
+   ad hoc titles per control, so copy stays consistent and short.
 
 **Open questions**
 - **Q2.1 — Corner and behaviour.** Which corner? Should the panel be draggable
@@ -133,6 +147,10 @@ No new features. The goal is that the app looks and behaves as it does now
   ramp. For signed amplitude a diverging map (blue↔black↔amber, or a proper
   perceptually uniform pair) reads much better, and dB mode wants something
   like inferno. Any aesthetic preference, or free choice?
+- **Q2.4 — Tooltip mechanism and depth. RESOLVED: `(?)` icon, click/tap to
+  expand.** A small help icon next to each control; clicking/tapping expands
+  an inline sentence-plus-formula (as sketched above). Works on touch,
+  doesn't clutter the panel by default.
 
 ---
 
