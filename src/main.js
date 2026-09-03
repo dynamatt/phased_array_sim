@@ -3,6 +3,7 @@ import { startRenderer } from "./gpu.js";
 import { screenToWorld, computeFitView } from "./units.js";
 import { layoutArray } from "./geometry.js";
 import { createPanel } from "./ui/panel.js";
+import { createAxesOverlay } from "./ui/axes.js";
 
 const store = createStateStore();
 
@@ -91,7 +92,7 @@ function setupViewInteraction() {
 }
 
 /** '0' resets the view, 'H' hides all chrome, space pauses, '.' single-steps a frame. */
-function setupKeyboard(panel) {
+function setupKeyboard(panel, axes) {
     let chromeHidden = false;
     window.addEventListener("keydown", (event) => {
         const active = document.activeElement;
@@ -104,6 +105,7 @@ function setupKeyboard(panel) {
         } else if (event.key === "h" || event.key === "H") {
             chromeHidden = !chromeHidden;
             panel.setFullyHidden(chromeHidden);
+            axes.setHidden(chromeHidden);
         } else if (event.key === " ") {
             event.preventDefault();
             store.update("display.paused", !store.get().display.paused);
@@ -117,16 +119,19 @@ function setupKeyboard(panel) {
 function showUnsupported(message) {
     $("gpuCanvas").hidden = true;
     $("controls")?.remove();
+    $("axesOverlay")?.remove();
     const panel = $("unsupportedPanel");
     $("unsupportedDetail").textContent = message;
     panel.hidden = false;
 }
 
 async function main() {
+    const axes = createAxesOverlay($("gpuCanvas"), store);
+    document.body.appendChild(axes.element);
     const panel = createPanel(store, { onFitArray: fitViewToArray });
     document.body.appendChild(panel.element);
     setupViewInteraction();
-    setupKeyboard(panel);
+    setupKeyboard(panel, axes);
     await startRenderer($("gpuCanvas"), store, { onUnsupported: showUnsupported });
 }
 

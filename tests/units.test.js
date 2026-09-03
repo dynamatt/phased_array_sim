@@ -1,6 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { screenToWorld, worldToScreen, wrapPhase, wavelengthMeters, computeFitView, steeringPhaseStep } from "../src/units.js";
+import {
+    screenToWorld,
+    worldToScreen,
+    wrapPhase,
+    wavelengthMeters,
+    computeFitView,
+    steeringPhaseStep,
+    niceStep,
+    chooseSiPrefix,
+    axisTickStep,
+    formatAxisTick,
+} from "../src/units.js";
 
 test("screen -> world -> screen round-trips for arbitrary points", () => {
     const view = { width: 800, height: 600, centerX: 1.25, centerY: -0.5, worldPerPixel: 0.015 };
@@ -98,4 +109,52 @@ test("steeringPhaseStep is odd in the steering angle", () => {
     const positive = steeringPhaseStep(0.4, 20);
     const negative = steeringPhaseStep(0.4, -20);
     assert.ok(Math.abs(positive + negative) < 1e-9);
+});
+
+test("niceStep rounds up to the nearest 1/2/5 x 10^n", () => {
+    assert.equal(niceStep(0.012), 0.01);
+    assert.equal(niceStep(0.024), 0.02);
+    assert.equal(niceStep(0.049), 0.05);
+    assert.equal(niceStep(0.08), 0.1);
+    assert.equal(niceStep(1), 1);
+    assert.equal(niceStep(9.5), 10);
+});
+
+test("niceStep handles zero/negative input without throwing", () => {
+    assert.equal(niceStep(0), 0);
+    assert.equal(niceStep(-1), 0);
+});
+
+test("chooseSiPrefix picks the largest unit no bigger than the value", () => {
+    assert.equal(chooseSiPrefix(0.001).symbol, "mm");
+    assert.equal(chooseSiPrefix(0.1).symbol, "cm");
+    assert.equal(chooseSiPrefix(2).symbol, "m");
+    assert.equal(chooseSiPrefix(5000).symbol, "km");
+});
+
+test("chooseSiPrefix falls back to the smallest prefix below its range", () => {
+    assert.equal(chooseSiPrefix(1e-12).symbol, "nm");
+});
+
+test("axisTickStep + formatAxisTick reproduce the mm/cm examples from the spec", () => {
+    // worldPerPixel chosen so 90px of screen is ~1mm: with metersPerLambda=1,
+    // worldPerPixel is directly metres/px.
+    const mmCase = axisTickStep(1e-3 / 90, 1, 90);
+    assert.equal(mmCase.prefix.symbol, "mm");
+    assert.equal(formatAxisTick(1, mmCase.stepMeters, mmCase.prefix), "1mm");
+    assert.equal(formatAxisTick(2, mmCase.stepMeters, mmCase.prefix), "2mm");
+    assert.equal(formatAxisTick(-3, mmCase.stepMeters, mmCase.prefix), "-3mm");
+
+    const cmCase = axisTickStep(0.1 / 90, 1, 90);
+    assert.equal(cmCase.prefix.symbol, "cm");
+    assert.equal(formatAxisTick(1, cmCase.stepMeters, cmCase.prefix), "10cm");
+    assert.equal(formatAxisTick(2, cmCase.stepMeters, cmCase.prefix), "20cm");
+});
+
+test("axisTickStep is frequency-dependent only through metersPerLambda, not worldPerPixel directly", () => {
+    // Same worldPerPixel, different wavelength -> different physical step,
+    // matching CLAUDE.md 5.2 (pattern is frequency-independent, presentation isn't).
+    const slow = axisTickStep(0.01, 1e-3);
+    const fast = axisTickStep(0.01, 1);
+    assert.notEqual(slow.stepMeters, fast.stepMeters);
 });

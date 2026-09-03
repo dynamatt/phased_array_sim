@@ -87,6 +87,87 @@ export function computeFitView(points, canvasWidth, canvasHeight, marginFactor =
     return { centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2, fovLambda };
 }
 
+/** SI length prefixes the axis overlay chooses among, descending by factor. */
+const SI_LENGTH_PREFIXES = [
+    { symbol: "Gm", factor: 1e9 },
+    { symbol: "Mm", factor: 1e6 },
+    { symbol: "km", factor: 1e3 },
+    { symbol: "m", factor: 1 },
+    { symbol: "cm", factor: 1e-2 },
+    { symbol: "mm", factor: 1e-3 },
+    { symbol: "µm", factor: 1e-6 },
+    { symbol: "nm", factor: 1e-9 },
+];
+
+/**
+ * Rounds `rawValue` (> 0) up to the nearest "nice" 1/2/5 x 10^n step, the
+ * standard graph-axis tick algorithm. Used so axis ticks land on round
+ * numbers instead of whatever the zoom level happens to imply.
+ * @param {number} rawValue
+ * @returns {number}
+ */
+export function niceStep(rawValue) {
+    if (!(rawValue > 0)) return 0;
+    const exponent = Math.floor(Math.log10(rawValue));
+    const fraction = rawValue / Math.pow(10, exponent);
+    let niceFraction;
+    let niceExponent = exponent;
+    if (fraction < 1.5) niceFraction = 1;
+    else if (fraction < 3) niceFraction = 2;
+    else if (fraction < 7) niceFraction = 5;
+    else { niceFraction = 1; niceExponent += 1; }
+    return niceFraction * Math.pow(10, niceExponent);
+}
+
+/**
+ * The largest SI length prefix whose unit is no bigger than `valueMeters`,
+ * so the displayed coefficient is >= 1 (e.g. "10 cm" rather than "0.1 m").
+ * Falls back to the smallest prefix (nm) below that.
+ * @param {number} valueMeters
+ * @returns {{symbol:string, factor:number}}
+ */
+export function chooseSiPrefix(valueMeters) {
+    const abs = Math.abs(valueMeters);
+    for (const prefix of SI_LENGTH_PREFIXES) {
+        if (abs >= prefix.factor) return prefix;
+    }
+    return SI_LENGTH_PREFIXES[SI_LENGTH_PREFIXES.length - 1];
+}
+
+/**
+ * Axis tick spacing for the world-space axes overlay: a "nice" step in
+ * physical units close to `targetTickPx` on screen, converted back to world
+ * units (lambda) via the current wavelength, plus the SI prefix to label it
+ * with. CLAUDE.md 5.2: the pattern lives in wavelengths, but the axis is a
+ * presentation-layer readout, so it always re-derives from the current
+ * medium/frequency rather than being stored.
+ * @param {number} worldPerPixel lambda per CSS pixel
+ * @param {number} metersPerLambda wavelength in metres (c/f)
+ * @param {number} [targetTickPx]
+ * @returns {{stepWorld:number, stepMeters:number, prefix:{symbol:string, factor:number}}}
+ */
+export function axisTickStep(worldPerPixel, metersPerLambda, targetTickPx = 90) {
+    const metersPerPixel = worldPerPixel * metersPerLambda;
+    const stepMeters = niceStep(targetTickPx * metersPerPixel);
+    const stepWorld = stepMeters / metersPerLambda;
+    const prefix = chooseSiPrefix(stepMeters);
+    return { stepWorld, stepMeters, prefix };
+}
+
+/**
+ * Label for tick index `k` (can be negative), e.g. k=2, stepMeters=0.01,
+ * prefix={symbol:"cm",factor:0.01} -> "2cm".
+ * @param {number} k
+ * @param {number} stepMeters
+ * @param {{symbol:string, factor:number}} prefix
+ * @returns {string}
+ */
+export function formatAxisTick(k, stepMeters, prefix) {
+    const value = (k * stepMeters) / prefix.factor;
+    const rounded = Math.round(value * 1e6) / 1e6;
+    return `${rounded}${prefix.symbol}`;
+}
+
 /**
  * Per-element phase step for a uniform line array steered to `steerAngleDeg`
  * off boresight (CLAUDE.md 5.4): deltaPhi = -2*pi*(d/lambda)*sin(theta).

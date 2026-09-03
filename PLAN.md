@@ -64,6 +64,18 @@ No new features. The goal is that the app looks and behaves as it does now
 4. Add a **render scale** control (0.25–1.0) that renders to a smaller target
    and upscales, as the escape hatch for 4K / high element counts.
 5. Element markers drawn at a fixed pixel radius, not a fixed world radius.
+6. **World-space axes**, origin at the array's reference point (see Q1.3),
+   drawn in screen space (fixed pixel line/label size, not affected by zoom
+   blur). Ticks land on "nice" numbers (1/2/5 × 10ⁿ) in **physical units**,
+   not wavelengths: convert the current `worldPerPixel` (λ) to metres via the
+   medium's `c` and the chosen `f` (`units.js`, same conversion the λ↔metres
+   readout in `CLAUDE.md` §5.2 already uses), then pick a tick spacing and SI
+   prefix so labels stay single/low-digit — `1mm 2mm 3mm…` at one zoom,
+   `10cm 20cm 30cm…` at another, `1m 2m 3m…` at another. Recompute the
+   step+prefix on every zoom change; relabel, don't just rescale. Since this
+   is frequency-dependent (`λ = c/f`), the axis labels move when `f` changes
+   even though the field pattern doesn't — call that out once, near the
+   frequency control, so it doesn't read as a bug.
 
 **Open questions**
 - **Q1.1 — Pan and zoom.** Should the view be navigable at all in this phase?
@@ -75,6 +87,13 @@ No new features. The goal is that the app looks and behaves as it does now
   view hold constant world width (array can overflow vertically) or auto-fit
   the array plus a margin? Suggested: constant world width, with an "fit array"
   button.
+- **Q1.3 — Origin for even element counts. RESOLVED: always the array
+  centroid.** Same rule for every shape and parity; coincides with "middle
+  element" whenever one exists, no shape-specific logic needed.
+- **Q1.4 — Axis extent and style. RESOLVED: cross-hair ticks only.** Short
+  tick marks with labels along one horizontal and one vertical line through
+  the origin, not full-canvas gridlines — minimises visual interference with
+  the field colouring.
 
 ---
 
