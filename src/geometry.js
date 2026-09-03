@@ -93,6 +93,26 @@ export function parabolaFocalLength(curvatureA) {
 }
 
 /**
+ * The array's aperture (largest pairwise distance between elements, in
+ * wavelengths) -- used by focus.js for the near-field/far-field (Rayleigh
+ * distance) regime check, PLAN.md Phase 4.
+ * @param {ElementPosition[]} positions
+ * @returns {number}
+ */
+export function apertureLambda(positions) {
+    let maxDistSq = 0;
+    for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+            const dx = positions[i].x - positions[j].x;
+            const dy = positions[i].y - positions[j].y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > maxDistSq) maxDistSq = distSq;
+        }
+    }
+    return Math.sqrt(maxDistSq);
+}
+
+/**
  * @param {number} spacingLambda
  * @param {number} count
  * @returns {ElementPosition[]}

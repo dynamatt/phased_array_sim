@@ -8,7 +8,8 @@
 
 import { MEDIA } from "../state.js";
 import { wavelengthMeters, steeringPhaseStep } from "../units.js";
-import { elementSpacingForArray, parabolaFocalLength } from "../geometry.js";
+import { elementSpacingForArray, parabolaFocalLength, apertureLambda, layoutArray } from "../geometry.js";
+import { equivalentSteerAngleDeg, rayleighDistanceLambda } from "../focus.js";
 import {
     createSlider,
     createKnob,
@@ -154,7 +155,7 @@ export function createPanel(store, { onFitArray }) {
     // ---- Excitation ----
     const steerAngle = createKnob({
         label: "Steering angle",
-        help: "Beam direction off boresight (0° = straight ahead). The panel derives the phase delay each element needs to advance by (Δφ = −2π·(d/λ)·sinθ, shown below) so every wavefront arrives in step in that direction — the core trick that makes it a *phased* array rather than a plain broadcast.",
+        help: "Beam direction off boresight (0° = straight ahead). The panel derives the phase delay each element needs to advance by (Δφ = −2π·(d/λ)·sinθ, shown below) so every wavefront arrives in step in that direction — the core trick that makes it a *phased* array rather than a plain broadcast. Clicking a target point on the canvas (Phase 4) takes over steering: the knob greys out and shows the equivalent angle for that target instead.",
         min: -80,
         max: 80,
         value: store.get().excitation.steerAngleDeg,
@@ -190,7 +191,12 @@ export function createPanel(store, { onFitArray }) {
         "Grating lobes",
         "Extra copies of the main beam appearing at other angles, caused by spacing elements more than half a wavelength apart (d/λ > 0.5) — the spatial equivalent of aliasing when you sample a signal too slowly."
     );
-    const excitationSection = createSection("Excitation", [steerAngle, medium, frequency, phaseStepReadout, gratingLobeReadout]);
+    const targetRegimeReadout = createReadout(
+        "Focus target",
+        "Click anywhere on the field to focus the array there instead of steering it manually. Near field (range below the Rayleigh distance D²/4, D = aperture): the phases genuinely converge the beam to that point, a true focus. Far field (beyond it): the target only fixes a direction, no different from the steering angle — the array can't tell a target 1000λ away from one at infinity in the same direction."
+    );
+    const clearTargetButton = createButton("Clear target", () => store.update("focus.active", false));
+    const excitationSection = createSection("Excitation", [steerAngle, medium, frequency, phaseStepReadout, gratingLobeReadout, targetRegimeReadout, clearTargetButton]);
 
     // ---- Display ----
     const mode = createSegmented({
@@ -257,7 +263,7 @@ export function createPanel(store, { onFitArray }) {
     );
     const hint = document.createElement("div");
     hint.className = "view-hint";
-    hint.textContent = "Scroll to zoom, drag to pan, 0 resets the view, H hides this panel, space pauses, . steps a frame.";
+    hint.textContent = "Scroll to zoom, drag to pan, click to set a focus target, drag the target to move it, Esc clears it, 0 resets the view, H hides this panel, space pauses, . steps a frame.";
     const viewSection = createSection("View", [renderScale, fitButton, wavelengthReadout, spacingMetersReadout, hint]);
 
     body.append(arraySection, excitationSection, displaySection, viewSection);
@@ -283,6 +289,21 @@ export function createPanel(store, { onFitArray }) {
         slowMotionReadout.setValue(
             Number.isFinite(slowMotion) ? `slowed ${slowMotion.toExponential(2)}×` : "paused (0 cyc/s)"
         );
+
+        // Phase 4: a target overrides the steering knob entirely (Q4.1) --
+        // grey it out and show the equivalent angle instead of the manual value.
+        steerAngle.setDisabled(state.focus.active);
+        targetRegimeReadout.element.hidden = !state.focus.active;
+        clearTargetButton.element.hidden = !state.focus.active;
+        if (state.focus.active) {
+            const rangeLambda = Math.hypot(state.focus.x, state.focus.y);
+            const rayleigh = rayleighDistanceLambda(apertureLambda(layoutArray(state.array)));
+            const regime = rangeLambda > rayleigh ? "far field (steering-like)" : "near field (true focus)";
+            targetRegimeReadout.setValue(`${regime} — ${rangeLambda.toFixed(2)}λ (Rayleigh ${rayleigh.toFixed(2)}λ)`);
+            steerAngle.setValue(equivalentSteerAngleDeg(state.focus), { silent: true });
+        } else {
+            steerAngle.setValue(state.excitation.steerAngleDeg, { silent: true });
+        }
     }
     store.subscribe(updateDerived);
     updateDerived();

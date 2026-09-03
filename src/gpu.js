@@ -6,6 +6,7 @@
 
 import { layoutArray, elementSpacingForArray } from "./geometry.js";
 import { wrapPhase, TWO_PI, steeringPhaseStep } from "./units.js";
+import { phasesForTarget } from "./focus.js";
 import { DISPLAY_MODES } from "./state.js";
 
 export const MAX_ELEMENTS = 256;
@@ -95,10 +96,13 @@ function applyCanvasSize(canvas, gpu, renderScale) {
 function packElements(target, snapshot) {
     const positions = layoutArray(snapshot.array);
     const n = Math.min(positions.length, MAX_ELEMENTS);
+    // Phase 4: a target replaces manual steering entirely (PLAN.md Q4.1) --
+    // phases come from the propagation delay to the target, not the knob.
+    const focusPhases = snapshot.focus.active ? phasesForTarget(positions, snapshot.focus) : null;
     const spacingLambda = elementSpacingForArray(snapshot.array);
-    const phaseStepRad = steeringPhaseStep(spacingLambda, snapshot.excitation.steerAngleDeg);
+    const steerPhaseStepRad = steeringPhaseStep(spacingLambda, snapshot.excitation.steerAngleDeg);
     for (let i = 0; i < n; i++) {
-        const phaseRad = wrapPhase(i * phaseStepRad);
+        const phaseRad = focusPhases ? focusPhases[i] : wrapPhase(i * steerPhaseStepRad);
         target[i * 4 + 0] = positions[i].x;
         target[i * 4 + 1] = positions[i].y;
         target[i * 4 + 2] = phaseRad;

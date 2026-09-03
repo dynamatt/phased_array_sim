@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { layoutElements, layoutArray, elementSpacingLambda, elementSpacingForArray, parabolaFocalLength } from "../src/geometry.js";
+import { layoutElements, layoutArray, elementSpacingLambda, elementSpacingForArray, parabolaFocalLength, apertureLambda } from "../src/geometry.js";
 
 test("line layout produces exactly `count` elements", () => {
     const positions = layoutElements("line", { spacingLambda: 0.5 }, 8);
@@ -110,4 +110,16 @@ test("elementSpacingLambda for arc matches R * sweepRad / (n - 1)", () => {
 test("elementSpacingForArray matches elementSpacingLambda for the same shape", () => {
     const arrayState = { shape: "arc", elementCount: 6, radiusLambda: 12, sweepDeg: 60 };
     assert.equal(elementSpacingForArray(arrayState), elementSpacingLambda("arc", arrayState, 6));
+});
+
+test("apertureLambda matches the end-to-end distance for a line array", () => {
+    const positions = layoutElements("line", { spacingLambda: 0.5 }, 8);
+    assert.ok(Math.abs(apertureLambda(positions) - 0.5 * 7) < 1e-9);
+});
+
+test("apertureLambda is zero for a single element and symmetric under reordering", () => {
+    assert.equal(apertureLambda(layoutElements("line", { spacingLambda: 0.5 }, 1)), 0);
+    const positions = layoutElements("arc", { radiusLambda: 10, sweepDeg: 120 }, 5);
+    const shuffled = [...positions].reverse();
+    assert.equal(apertureLambda(positions), apertureLambda(shuffled));
 });

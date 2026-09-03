@@ -224,33 +224,39 @@ the "focus" is really just a beam direction. Display which regime the current
 target is in, and the equivalent steering angle — that's the insight the
 feature exists to teach.
 
-**Tasks**
+**Tasks — all done**
 1. `focus.js`: `phasesForTarget(elements, targetWorld) -> Float32Array`. Pure,
-   tested. Include the parabola test from `CLAUDE.md` §8: targeting the
-   geometric focus of `y = ax²` must yield near-uniform phases.
-2. Pointer handling on the canvas: screen → world via `units.js` (**the same
-   transform the shader uses** — this is where a bug would hide), set target,
-   recompute phases, rewrite the storage buffer.
-3. Drag to move the target live; the field should follow at 60 fps. The phase
-   recompute is O(N) on the CPU — trivial.
-4. Render a target marker (crosshair / ring) at fixed pixel size.
-5. Clear the target (`Esc`, or a panel button) to return to steering mode.
+   tested. Includes the parabola test from `CLAUDE.md` §8: targeting the
+   geometric focus of `y = ax²` yields near-uniform phases. Also exports
+   `equivalentSteerAngleDeg` and `rayleighDistanceLambda` for the regime
+   readout below.
+2. Pointer handling on the canvas (`main.js` `setupViewInteraction`): screen →
+   world via `units.js` (the same transform the shader uses), set target,
+   recompute phases, rewrite the storage buffer (`gpu.js` `packElements`).
+   **Interaction model (resolved):** a plain click (press+release under a
+   5px move threshold) on empty canvas places/replaces the target (Q4.2:
+   always replace); dragging elsewhere still pans, unchanged from Phase 1;
+   pressing down within grab range (18px) of an existing target's marker and
+   dragging moves it live instead of panning.
+3. Drag to move the target live; the field follows at 60 fps (phase recompute
+   is O(N) on the CPU, done directly in the pointermove handler).
+4. Target marker: fixed-pixel crosshair/ring, drawn as an SVG overlay
+   (`ui/target.js`), same pattern as the Phase 1 axes overlay.
+5. `Esc` or the panel's "Clear target" button clears the target and returns
+   to steering mode.
 
-**Open questions**
-- **Q4.1 — Mode interaction.** When a target is set, what happens to the
-  steering-angle knob? Options: (a) it's disabled and greyed with the derived
-  equivalent angle shown; (b) it becomes an additional phase offset applied on
-  top; (c) moving it clears the target. Recommendation: (a).
-- **Q4.2 — Multiple targets.** Should clicking add a second focal point
-  (multi-focus, phases from the summed complex weights) or always replace?
-  Replace is the simple version; multi-focus is a genuinely interesting demo
-  but needs a defined combining rule. Which for v1?
-- **Q4.3 — Phase quantisation.** Expose an N-bit phase shifter quantisation
-  control (2/3/4/6 bit) to show quantisation lobes? Real hardware behaviour,
-  ~5 lines, very illustrative. Now or later?
-- **Q4.4 — Targets behind the array.** Should clicking on the back side of the
-  array be allowed, refused, or allowed with a warning? Depends on the answer
-  to Q3.3.
+**Resolved open questions**
+- **Q4.1 — Mode interaction. RESOLVED: (a) disable + show equivalent angle.**
+  The steering knob greys out and displays `equivalentSteerAngleDeg(target)`
+  while a target is active; clearing the target restores the knob's own
+  stored value.
+- **Q4.2 — Multiple targets. RESOLVED: always replace** (v1; single
+  `focus: {active, x, y}` state slice, no multi-focus combining rule needed).
+- **Q4.4 — Targets behind the array. RESOLVED: allow always, no
+  special-casing.** Elements are isotropic (Q3.3 still unimplemented), so
+  there's no physical "back" of the array yet to warn about.
+- **Q4.3 — Phase quantisation.** Still open; deferred, not implemented this
+  pass (see Later/parked).
 
 ---
 
@@ -270,3 +276,9 @@ Not in scope now; listed so the architecture doesn't foreclose them.
   it's cheap to add later: compute per-element weights from the window
   function in `geometry.js` or a new pure module, write them into the `w`
   slot `gpu.js` already packs. Good demo of the sidelobe/beamwidth trade-off.
+- Phase quantisation (Q4.3, deferred out of Phase 4): an N-bit phase shifter
+  control (2/3/4/6 bit) that rounds each element's phase to the nearest
+  quantisation step before writing it to the storage buffer, to show
+  quantisation lobes — real hardware behaviour, cheap to add (rounds
+  `phasesForTarget`'s or the steering phase's output), skipped this pass to
+  keep Phase 4 to what was actually asked for.

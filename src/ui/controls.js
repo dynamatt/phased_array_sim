@@ -218,14 +218,16 @@ export function createKnob(opts) {
         return min + ((clampedDeg + DIAL_SPAN_DEG / 2) / DIAL_SPAN_DEG) * (max - min);
     }
 
+    let disabled = false;
     let dragging = false;
     svg.addEventListener("pointerdown", (event) => {
+        if (disabled) return;
         dragging = true;
         svg.setPointerCapture(event.pointerId);
         setValue(valueFromDialDeg(dialDegFromPointer(event)));
     });
     svg.addEventListener("pointermove", (event) => {
-        if (!dragging) return;
+        if (disabled || !dragging) return;
         setValue(valueFromDialDeg(dialDegFromPointer(event)));
     });
     const endDrag = () => { dragging = false; };
@@ -233,6 +235,7 @@ export function createKnob(opts) {
     svg.addEventListener("pointercancel", endDrag);
 
     svg.addEventListener("keydown", (event) => {
+        if (disabled) return;
         const stepDeg = event.shiftKey ? 1 : 5;
         if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
             event.preventDefault();
@@ -243,10 +246,18 @@ export function createKnob(opts) {
         }
     });
 
+    /** Greys out the knob and takes it out of the tab order, e.g. while a Phase 4 target overrides manual steering. */
+    function setDisabled(v) {
+        disabled = v;
+        wrap.classList.toggle("ctl-knob-disabled", v);
+        svg.tabIndex = v ? -1 : 0;
+        svg.setAttribute("aria-disabled", String(v));
+    }
+
     render(current);
     wrap.append(labelRow, svg);
     if (helpParts) wrap.appendChild(helpParts.panel);
-    return { element: wrap, setValue };
+    return { element: wrap, setValue, setDisabled };
 }
 
 /**

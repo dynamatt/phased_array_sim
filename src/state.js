@@ -59,6 +59,14 @@ function createInitialState() {
             fovLambda: DEFAULT_VIEW.fovLambda,
             renderScale: 1,
         },
+        // Phase 4 clickable target: when active, per-element phases come
+        // from focus.js (phasesForTarget) instead of the steering knob, per
+        // PLAN.md Q4.1/Q4.2 (single target, replaces on a new click).
+        focus: {
+            active: false,
+            x: 0,
+            y: 0,
+        },
     };
 }
 

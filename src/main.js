@@ -1,9 +1,10 @@
 import { createStateStore, DEFAULT_VIEW } from "./state.js";
 import { startRenderer } from "./gpu.js";
-import { screenToWorld, computeFitView } from "./units.js";
+import { screenToWorld, worldToScreen, computeFitView } from "./units.js";
 import { layoutArray } from "./geometry.js";
 import { createPanel } from "./ui/panel.js";
 import { createAxesOverlay } from "./ui/axes.js";
+import { createTargetOverlay, TARGET_GRAB_RADIUS_CSS_PX } from "./ui/target.js";
 
 const store = createStateStore();
 
@@ -12,6 +13,10 @@ const $ = (id) => document.getElementById(id);
 const MIN_FOV_LAMBDA = 0.5;
 const MAX_FOV_LAMBDA = 1000;
 const STEP_SECONDS = 1 / 60;
+// Below this many backing pixels of movement, a press+release is a click
+// (place a target) rather than a drag (pan) -- PLAN.md Phase 4's chosen
+// interaction model.
+const CLICK_MOVE_THRESHOLD_PX = 5;
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -49,7 +54,13 @@ function currentView(canvas) {
     };
 }
 
-/** Wheel-to-zoom (about the cursor) and drag-to-pan on the canvas. */
+/**
+ * Wheel-to-zoom (about the cursor), drag-to-pan, and the Phase 4 target
+ * gestures on the canvas: a plain click (press+release under the move
+ * threshold) on empty space places/replaces the focus target (PLAN.md
+ * Q4.2 -- always replace); pressing down within grab range of an existing
+ * target's marker and dragging moves it live instead of panning.
+ */
 function setupViewInteraction() {
     const canvas = $("gpuCanvas");
 
@@ -71,28 +82,74 @@ function setupViewInteraction() {
     }, { passive: false });
 
     let drag = null;
+    let targetDrag = null;
+
+    function isNearTargetMarker(view, screenX, screenY) {
+        const focus = store.get().focus;
+        if (!focus.active) return false;
+        const targetScreen = worldToScreen(view, focus.x, focus.y);
+        const backingPerCssPixel = canvas.width / (canvas.clientWidth || 1);
+        const grabRadiusPx = TARGET_GRAB_RADIUS_CSS_PX * backingPerCssPixel;
+        return Math.hypot(screenX - targetScreen.x, screenY - targetScreen.y) <= grabRadiusPx;
+    }
+
     canvas.addEventListener("pointerdown", (event) => {
         canvas.setPointerCapture(event.pointerId);
         const view = currentView(canvas);
         const { x: screenX, y: screenY } = eventToCanvasPixels(canvas, event);
-        drag = { pointerId: event.pointerId, worldAnchor: screenToWorld(view, screenX, screenY) };
+
+        if (isNearTargetMarker(view, screenX, screenY)) {
+            targetDrag = { pointerId: event.pointerId };
+            return;
+        }
+        drag = {
+            pointerId: event.pointerId,
+            worldAnchor: screenToWorld(view, screenX, screenY),
+            startScreenX: screenX,
+            startScreenY: screenY,
+            moved: false,
+        };
     });
     canvas.addEventListener("pointermove", (event) => {
-        if (!drag || drag.pointerId !== event.pointerId) return;
         const view = currentView(canvas);
         const { x: screenX, y: screenY } = eventToCanvasPixels(canvas, event);
+
+        if (targetDrag && targetDrag.pointerId === event.pointerId) {
+            const world = screenToWorld(view, screenX, screenY);
+            store.update("focus.x", world.x);
+            store.update("focus.y", world.y);
+            return;
+        }
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        if (Math.hypot(screenX - drag.startScreenX, screenY - drag.startScreenY) > CLICK_MOVE_THRESHOLD_PX) {
+            drag.moved = true;
+        }
         store.update("view.centerX", drag.worldAnchor.x - (screenX - view.width / 2) * view.worldPerPixel);
         store.update("view.centerY", drag.worldAnchor.y + (screenY - view.height / 2) * view.worldPerPixel);
     });
     const endDrag = (event) => {
-        if (drag && drag.pointerId === event.pointerId) drag = null;
+        if (targetDrag && targetDrag.pointerId === event.pointerId) {
+            targetDrag = null;
+            return;
+        }
+        if (drag && drag.pointerId === event.pointerId) {
+            if (!drag.moved) {
+                const view = currentView(canvas);
+                const { x: screenX, y: screenY } = eventToCanvasPixels(canvas, event);
+                const world = screenToWorld(view, screenX, screenY);
+                store.update("focus.x", world.x);
+                store.update("focus.y", world.y);
+                store.update("focus.active", true);
+            }
+            drag = null;
+        }
     };
     canvas.addEventListener("pointerup", endDrag);
     canvas.addEventListener("pointercancel", endDrag);
 }
 
-/** '0' resets the view, 'H' hides all chrome, space pauses, '.' single-steps a frame. */
-function setupKeyboard(panel, axes) {
+/** '0' resets the view, 'H' hides all chrome, space pauses, '.' single-steps a frame, Esc clears the focus target. */
+function setupKeyboard(panel, axes, targetOverlay) {
     let chromeHidden = false;
     window.addEventListener("keydown", (event) => {
         const active = document.activeElement;
@@ -106,12 +163,15 @@ function setupKeyboard(panel, axes) {
             chromeHidden = !chromeHidden;
             panel.setFullyHidden(chromeHidden);
             axes.setHidden(chromeHidden);
+            targetOverlay.setHidden(chromeHidden);
         } else if (event.key === " ") {
             event.preventDefault();
             store.update("display.paused", !store.get().display.paused);
         } else if (event.key === ".") {
             store.update("display.paused", true);
             store.update("display.timeSeconds", store.get().display.timeSeconds + STEP_SECONDS);
+        } else if (event.key === "Escape") {
+            store.update("focus.active", false);
         }
     });
 }
@@ -120,6 +180,7 @@ function showUnsupported(message) {
     $("gpuCanvas").hidden = true;
     $("controls")?.remove();
     $("axesOverlay")?.remove();
+    $("targetOverlay")?.remove();
     const panel = $("unsupportedPanel");
     $("unsupportedDetail").textContent = message;
     panel.hidden = false;
@@ -128,10 +189,12 @@ function showUnsupported(message) {
 async function main() {
     const axes = createAxesOverlay($("gpuCanvas"), store);
     document.body.appendChild(axes.element);
+    const targetOverlay = createTargetOverlay($("gpuCanvas"), store);
+    document.body.appendChild(targetOverlay.element);
     const panel = createPanel(store, { onFitArray: fitViewToArray });
     document.body.appendChild(panel.element);
     setupViewInteraction();
-    setupKeyboard(panel, axes);
+    setupKeyboard(panel, axes, targetOverlay);
     await startRenderer($("gpuCanvas"), store, { onUnsupported: showUnsupported });
 }
 
