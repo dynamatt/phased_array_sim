@@ -6,14 +6,19 @@ each phase before writing that phase's code.**
 Phases are ordered so each one rests on the last. Do not start a phase before
 its predecessor is verified working.
 
+**Status: Phases 0–4 are all done.** The staged plan as originally scoped is
+complete. What's left is one still-open question (Q3.3, element directivity)
+and the "Later/parked" menu of optional follow-on features at the bottom —
+nothing there is committed to yet.
+
 ---
 
-## Phase 0 — Refactor and foundations
+## Phase 0 — Refactor and foundations — done
 
 No new features. The goal is that the app looks and behaves as it does now
 (minus the listed bugs) but on an architecture that can carry Phases 1–4.
 
-**Tasks**
+**Tasks — all done**
 1. Split into the module layout in `CLAUDE.md` §4.
 2. Introduce `state.js` as the single source of truth. UI writes to it; the
    render loop reads a snapshot from it. Nothing queries the DOM per frame.
@@ -30,29 +35,27 @@ No new features. The goal is that the app looks and behaves as it does now
 6. Replace `alert()` with an in-page unsupported-browser panel.
 7. Add `tests/` with a screen→world→screen round-trip test.
 
-**Open questions — ask before starting**
-- **Q0.1 — Domain.** The variables say "antenna" but the constant is the speed
-  of sound in tissue. Should the sim present as acoustic (ultrasound / air
-  acoustics), electromagnetic (RF antennas), or domain-neutral with a
-  selectable medium (air 343, water 1480, soft tissue 1540, vacuum 3e8 m/s)?
-  Neutral-with-a-medium-picker is the recommendation; confirm.
-- **Q0.2 — Spreading loss.** The current shader sums `sin()` with no `1/r`
-  decay, so distant regions look as bright as near ones. Add `1/sqrt(r)`
-  (correct for 2D cylindrical spreading, and this *is* a 2D slice), add `1/r`
-  (correct for 3D point sources viewed in a plane), or keep it off with a
-  toggle? Recommendation: `1/sqrt(r)` on by default, toggleable, because it
-  makes the focal gain at a clicked target visibly correct.
-- **Q0.3 — Inline the shader?** Inlining `field.wgsl` as a JS template literal
-  removes the `fetch()` and lets the app run from `file://` with no server at
-  all. Costs syntax highlighting in the `.wgsl` file. Worth it?
-- **Q0.4 — MAX_ELEMENTS.** 256 assumed. Higher? The per-pixel cost is linear in
-  element count, so 256 elements at 4K is the performance ceiling case.
+**Resolved open questions**
+- **Q0.1 — Domain. RESOLVED: domain-neutral with a medium picker**, as
+  recommended. `state.js` `MEDIA = {air: 343, water: 1480, tissue: 1540,
+  vacuum: 299792458}`; every variable/identifier says `element`, never
+  `antenna` (verified: no occurrences left anywhere in `src/`).
+- **Q0.2 — Spreading loss. RESOLVED: `1/√r`, on by default, toggleable.**
+  `shaders/field.wgsl` divides amplitude by `sqrt(r)` when
+  `spreadingEnabled != 0u`; `display.spreadingEnabled` defaults to `true`
+  with a panel toggle, exactly as recommended.
+- **Q0.3 — Inline the shader? RESOLVED: no, kept as a separate file.**
+  `gpu.js` still `fetch()`es `shaders/field.wgsl` at startup — a local
+  server is still required (`README.md`), but the file keeps WGSL syntax
+  highlighting.
+- **Q0.4 — MAX_ELEMENTS. RESOLVED: 256**, as suggested (`gpu.js`
+  `export const MAX_ELEMENTS = 256`).
 
 ---
 
-## Phase 1 — Fullscreen canvas
+## Phase 1 — Fullscreen canvas — done
 
-**Tasks**
+**Tasks — all done**
 1. Canvas fills the viewport: `position: fixed; inset: 0;` with the drawing
    buffer sized to `clientWidth × devicePixelRatio`, clamped to
    `device.limits.maxTextureDimension2D`.
@@ -77,16 +80,16 @@ No new features. The goal is that the app looks and behaves as it does now
    even though the field pattern doesn't — call that out once, near the
    frequency control, so it doesn't read as a bug.
 
-**Open questions**
-- **Q1.1 — Pan and zoom.** Should the view be navigable at all in this phase?
-  If yes, the bindings must not collide with Phase 4's click-to-target. Suggested:
-  wheel = zoom about cursor, drag = pan, plain click = set target, `0` = reset
-  view. Alternative: no navigation, fixed field of view set by a slider.
-  Which?
-- **Q1.2 — Array framing on resize.** When the window changes shape, should the
-  view hold constant world width (array can overflow vertically) or auto-fit
-  the array plus a margin? Suggested: constant world width, with an "fit array"
-  button.
+**Resolved open questions**
+- **Q1.1 — Pan and zoom. RESOLVED: navigable, as suggested.** `main.js`
+  `setupViewInteraction()`: wheel = zoom about cursor, drag = pan, `0` =
+  reset view. Plain click was later claimed by Phase 4's click-to-target,
+  exactly the collision this question flagged in advance.
+- **Q1.2 — Array framing on resize. RESOLVED: constant world width + a
+  manual "Fit array" button.** `view.fovLambda` (world width) is untouched
+  by resize; only the backing buffer and derived `worldPerPixel` change.
+  `fitViewToArray()` in `main.js`, wired to a View-section button, is the
+  manual escape hatch, as suggested.
 - **Q1.3 — Origin for even element counts. RESOLVED: always the array
   centroid.** Same rule for every shape and parity; coincides with "middle
   element" whenever one exists, no shape-specific logic needed.
@@ -97,9 +100,9 @@ No new features. The goal is that the app looks and behaves as it does now
 
 ---
 
-## Phase 2 — Collapsible glass control panel
+## Phase 2 — Collapsible glass control panel — done
 
-**Tasks**
+**Tasks — all done**
 1. Panel pinned to a corner, overlaying the canvas. Translucent dark surface:
    `background: rgba(12,14,18,0.55)`, `backdrop-filter: blur(16px)`, hairline
    `1px solid rgba(255,255,255,0.10)` border, generous radius, soft shadow.
@@ -137,16 +140,17 @@ No new features. The goal is that the app looks and behaves as it does now
 8. Reuse one tooltip primitive (`ui/controls.js`) for all of these rather than
    ad hoc titles per control, so copy stays consistent and short.
 
-**Open questions**
-- **Q2.1 — Corner and behaviour.** Which corner? Should the panel be draggable
-  and resizable, or fixed?
-- **Q2.2 — Readouts placement.** Keep derived readouts inside the panel, or put
-  a slim always-visible status strip along one edge so the numbers stay legible
-  when the panel is collapsed?
-- **Q2.3 — Colour direction.** Current field colouring is a single cyan-ish
-  ramp. For signed amplitude a diverging map (blue↔black↔amber, or a proper
-  perceptually uniform pair) reads much better, and dB mode wants something
-  like inferno. Any aesthetic preference, or free choice?
+**Resolved open questions**
+- **Q2.1 — Corner and behaviour. RESOLVED: top-left, fixed.** `#controls` in
+  `index.html` is `position: fixed; top: 1rem; left: 1rem`, collapsible but
+  not draggable or resizable.
+- **Q2.2 — Readouts placement. RESOLVED: inside the panel only.** No separate
+  always-visible status strip; readouts hide along with everything else when
+  the panel is collapsed.
+- **Q2.3 — Colour direction. RESOLVED: diverging blue↔black↔amber for signed
+  (instantaneous) values, a hand-rolled inferno approximation for magnitude
+  (envelope/dB).** `shaders/field.wgsl` `colorDiverging()` / `infernoColor()`,
+  matching the aesthetic sketched in the question.
 - **Q2.4 — Tooltip mechanism and depth. RESOLVED: `(?)` icon, click/tap to
   expand.** A small help icon next to each control; clicking/tapping expands
   an inline sentence-plus-formula (as sketched above). Works on touch,
@@ -154,7 +158,7 @@ No new features. The goal is that the app looks and behaves as it does now
 
 ---
 
-## Phase 3 — Configurable array shape
+## Phase 3 — Configurable array shape — done
 
 `geometry.js` exports one pure function:
 
@@ -175,7 +179,7 @@ layoutElements(shape, params, count)
   closed ring. Derived chord spacing `d = R·Δ/(N−1)`; surface the grating-lobe
   warning when `d > λ/2`.
 
-**Tasks**
+**Tasks — all done**
 1. Implement `layoutElements` with tests: element count exact, centroid at
    origin, spacing correct, line case matches the pre-existing positions,
    parabola focal length matches the analytic value.
@@ -183,28 +187,28 @@ layoutElements(shape, params, count)
 3. Uniform phase steering must still work for every shape (for a curved array,
    apply the linear phase gradient along the arc-length coordinate).
 
-**Open questions**
-- **Q3.1 — Spacing convention on curves.** For parabola and arc, should
-  elements be spaced equally in **arc length** along the curve (physically the
-  right thing, needs a small numeric integration for the parabola), equally in
-  `x`, or equally in the parameter? Recommendation: arc length. Confirm.
-- **Q3.2 — Parametrisation.** Should the user set element **count + spacing**
-  (aperture is derived), or **count + aperture** (spacing derived)? The second
-  is nicer when comparing shapes at constant aperture. Which, or both with a
-  lock toggle?
-- **Q3.3 — Element directivity.** Elements are currently isotropic point
+**Resolved open questions**
+- **Q3.1 — Spacing convention on curves. RESOLVED: arc length**, as
+  recommended, for every shape (`geometry.js`; confirmed by the
+  "equally spaced by arc length" test in `tests/geometry.test.js`).
+- **Q3.2 — Parametrisation. RESOLVED: count + spacing** (aperture derived),
+  no lock toggle. `panel.js`'s Array section exposes `Element count` and
+  `Spacing` sliders; aperture/focal-length/radius are read-only derived
+  readouts.
+- **Q3.4 — Amplitude taper. DEFERRED**, not exposed this pass — see
+  Later/parked. The storage buffer's per-element weight slot (`w`, always
+  1.0 today) is already reserved for it.
+
+**Still open**
+- **Q3.3 — Element directivity.** Elements are still isotropic point
   sources. For arcs past 180° and for parabolas, isotropic elements radiate
   backwards too, which muddies the picture. Add optional `cos^n(θ)` directivity
   about the local outward normal (default off)? For a ring array this is the
-  difference between a clean focus and a mess.
-- **Q3.4 — Amplitude taper.** The storage buffer reserves a per-element weight.
-  Expose apodisation windows (uniform / Hamming / Blackman / Taylor) now, or
-  leave the hook for later? It's cheap to add and demonstrates the sidelobe /
-  beamwidth trade-off very clearly.
+  difference between a clean focus and a mess. Also see Later/parked.
 
 ---
 
-## Phase 4 — Clickable target (focusing)
+## Phase 4 — Clickable target (focusing) — done
 
 **The physics.** For an antinode at target `T`, each element's contribution must
 arrive in phase:
@@ -262,23 +266,43 @@ feature exists to teach.
 
 ## Later / parked
 
-Not in scope now; listed so the architecture doesn't foreclose them.
+Not committed to yet; listed so the architecture doesn't foreclose them, and
+so there's a menu to pick from rather than reinventing one each time. Roughly
+ordered by recommendation, given the project's purpose is building intuition
+(`CLAUDE.md` §1) rather than feature completeness.
 
-- Beam pattern plot (far-field `|A(θ)|` in dB) as a small polar inset.
-- Shareable permalinks: serialise state to the URL hash. No server needed.
-- Obstacles / reflecting boundaries — a large step, would need a different
-  solver (FDTD), and would break the closed-form per-pixel evaluation.
-- Element failure simulation (kill random elements, watch sidelobes rise).
-- Time-domain pulse excitation rather than continuous wave.
-- Amplitude taper / apodisation windows (uniform / Hamming / Blackman /
+- **Beam pattern plot** — far-field `|A(θ)|` in dB as a small polar inset.
+  Top recommendation: it's the classic complementary view to the 2D field —
+  sidelobe levels, beamwidth, and grating lobes all become directly legible
+  in a way the field alone only hints at, and it composes with everything
+  already built (steering, shape, focus, taper). No new physics needed, just
+  a second render pass or a lightweight canvas-2D/SVG plot sampling the
+  existing phasor-sum math at a ring of far-field angles.
+- **Element directivity** (Q3.3, still open from Phase 3) — optional
+  `cos^n(θ)` directivity about each element's local outward normal (default
+  off). Second recommendation: elements are isotropic today, so arcs past
+  180° and parabolas radiate backwards too, muddying the picture; this is
+  also the prerequisite for Q4.4 (targets behind the array) to become a real
+  question rather than a moot one.
+- **Amplitude taper / apodisation windows** (uniform / Hamming / Blackman /
   Taylor) — Q3.4, deferred out of Phase 3. The storage buffer already
   reserves a per-element weight (`w`, currently always 1.0) for this, so
-  it's cheap to add later: compute per-element weights from the window
-  function in `geometry.js` or a new pure module, write them into the `w`
-  slot `gpu.js` already packs. Good demo of the sidelobe/beamwidth trade-off.
-- Phase quantisation (Q4.3, deferred out of Phase 4): an N-bit phase shifter
-  control (2/3/4/6 bit) that rounds each element's phase to the nearest
-  quantisation step before writing it to the storage buffer, to show
-  quantisation lobes — real hardware behaviour, cheap to add (rounds
-  `phasesForTarget`'s or the steering phase's output), skipped this pass to
-  keep Phase 4 to what was actually asked for.
+  it's cheap to add: compute per-element weights from the window function in
+  `geometry.js` or a new pure module, write them into the `w` slot `gpu.js`
+  already packs. Good demo of the sidelobe/beamwidth trade-off.
+- **Phase quantisation** (Q4.3, deferred out of Phase 4) — an N-bit phase
+  shifter control (2/3/4/6 bit) that rounds each element's phase to the
+  nearest quantisation step before writing it to the storage buffer, to show
+  quantisation lobes. Real hardware behaviour, cheap to add (rounds
+  `phasesForTarget`'s or the steering phase's output).
+- **Multi-focus targeting** (Q4.2's non-chosen option) — sum the complex
+  per-target weights so multiple clicks add focal points instead of
+  replacing. Needs a defined combining rule and a way to select/clear one of
+  several targets; parked in favour of the v1 single-target model.
+- Shareable permalinks: serialise state to the URL hash. No server needed.
+- Element failure simulation (kill random elements, watch sidelobes rise).
+- Time-domain pulse excitation rather than continuous wave.
+- Obstacles / reflecting boundaries — a large step, would need a different
+  solver (FDTD), and would break the closed-form per-pixel evaluation. Likely
+  permanently out of scope per `CLAUDE.md` §1 ("no meshing, no boundaries, no
+  scattering").

@@ -12,7 +12,7 @@ Then view in the browser at http://localhost:8000.
 
 ## Tests
 
-Pure logic (`src/units.js`, `src/geometry.js`) is covered by `node --test`,
-built into Node with no dependencies:
+Pure logic (`src/units.js`, `src/geometry.js`, `src/focus.js`) is covered by
+`node --test`, built into Node with no dependencies:
 
     npm test
