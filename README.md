@@ -1,5 +1,7 @@
 # Phased Array Simulator
 
+**Live demo:** https://dynamatt.github.io/phased_array_sim/
+
 A real-time, browser-based phased array wave-field simulator. Requires
 WebGPU (Chrome/Edge 113+, Safari 18+, Firefox 141+).
 
